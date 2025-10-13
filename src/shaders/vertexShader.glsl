@@ -1,18 +1,15 @@
 attribute vec4 a_position;
-attribute float a_quadIndex;
+attribute vec2 a_texCoord;
+attribute vec4 a_uvRect;
 
 uniform mat4 u_matrix;
-uniform vec3 u_quadColors[32];
-uniform float u_paletteSize;
 
-varying vec3 v_color;
+varying vec2 v_uv;
 
 void main() {
   gl_Position = u_matrix * a_position;
 
-  float maxIndex = max(u_paletteSize - 1.0, 0.0);
-  float clampedIndex = min(a_quadIndex, maxIndex);
-  int quadIndex = int(clampedIndex + 0.5);
-
-  v_color = u_quadColors[quadIndex];
+  vec2 minUV = a_uvRect.xy;
+  vec2 sizeUV = a_uvRect.zw;
+  v_uv = minUV + a_texCoord * sizeUV;
 }

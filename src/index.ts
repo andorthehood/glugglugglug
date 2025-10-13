@@ -10,17 +10,34 @@ import createProgram from "./utils/createProgram";
 import fragmentShader from "./shaders/fragmentShader.glsl?raw";
 import vertexShader from "./shaders/vertexShader.glsl?raw";
 import createShader from "./utils/createShader";
-import { CUBE_FLOAT_COUNT, fillBufferWithCubeVertices } from "./utils/positionBufferHelpers";
+import { CUBE_FLOAT_COUNT, CUBE_VERTEX_COUNT } from "./utils/positionBufferHelpers";
+import { VERTICES_PER_QUAD } from "./utils/colorBufferHelpers";
 import {
-	VERTICES_PER_QUAD,
-	COLOR_COMPONENTS_PER_QUAD,
-	setQuadColor,
-	fillBufferWithQuadIndices,
-} from "./utils/colorBufferHelpers";
+	TEX_COORD_COMPONENTS_PER_VERTEX,
+	UV_COMPONENTS_PER_QUAD,
+	expandQuadUVRects,
+} from "./utils/textureBufferHelpers";
+import { createTexturedCube, QUADS_PER_CUBE } from "./utils/createTexturedCube";
 
-function main() {
-	const canvas = document.getElementById("canvas") as HTMLCanvasElement;
+async function main() {
+	const canvas = document.getElementById("canvas") as HTMLCanvasElement | null;
+	const textureImage = document.getElementById("texture") as HTMLImageElement | null;
+
+	if (!canvas) {
+		throw new Error("Canvas element with id 'canvas' was not found");
+	}
+
+	if (!textureImage) {
+		throw new Error("Texture image with id 'texture' was not found");
+	}
+
+	await ensureImageReady(textureImage);
+
 	const gl = canvas.getContext("webgl");
+
+	if (!gl) {
+		throw new Error("WebGL not supported in this browser");
+	}
 
 	const program = createProgram(gl, [
 		createShader(gl, vertexShader, gl.VERTEX_SHADER),
@@ -28,36 +45,109 @@ function main() {
 	]);
 
 	const positionLocation = gl.getAttribLocation(program, "a_position");
-	const quadIndexLocation = gl.getAttribLocation(program, "a_quadIndex");
+	const texCoordLocation = gl.getAttribLocation(program, "a_texCoord");
+	const uvRectLocation = gl.getAttribLocation(program, "a_uvRect");
 	const matrixLocation = gl.getUniformLocation(program, "u_matrix");
-	const quadColorsLocation = gl.getUniformLocation(program, "u_quadColors[0]");
-	const paletteSizeLocation = gl.getUniformLocation(program, "u_paletteSize");
+	const textureLocation = gl.getUniformLocation(program, "u_texture");
 
-	if (quadIndexLocation === -1) {
-		throw new Error("Failed to locate attribute a_quadIndex");
+	if (positionLocation === -1) {
+		throw new Error("Failed to locate attribute a_position");
 	}
 
-	if (!quadColorsLocation || !paletteSizeLocation) {
-		throw new Error("Failed to locate quad color uniforms");
+	if (texCoordLocation === -1) {
+		throw new Error("Failed to locate attribute a_texCoord");
 	}
 
+	if (uvRectLocation === -1) {
+		throw new Error("Failed to locate attribute a_uvRect");
+	}
+
+	if (!matrixLocation || !textureLocation) {
+		throw new Error("Failed to locate shader uniforms");
+	}
 	const positionBuffer = gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+	if (!positionBuffer) {
+		throw new Error("Failed to create position buffer");
+	}
 
-	const positions = new Float32Array(CUBE_FLOAT_COUNT * 3);
-	fillBufferWithCubeVertices(positions, 0, 100);
-	fillBufferWithCubeVertices(positions, CUBE_FLOAT_COUNT, 50, [0, 100, 0]);
-	fillBufferWithCubeVertices(positions, CUBE_FLOAT_COUNT * 2, 50, [100, 0, 0]);
+	const texCoordBuffer = gl.createBuffer();
+	if (!texCoordBuffer) {
+		throw new Error("Failed to create texture coordinate buffer");
+	}
+
+	const quadUVRectBuffer = gl.createBuffer();
+	if (!quadUVRectBuffer) {
+		throw new Error("Failed to create UV rect buffer");
+	}
+
+	type CubeDefinition = {
+		size: number;
+		center?: [number, number, number];
+		textureTopLeft: [number, number];
+		textureSize: [number, number];
+	};
+
+	const halfTexture = 0.5;
+	const cubes: CubeDefinition[] = [
+		{
+			size: 100,
+			textureTopLeft: [0, 0],
+			textureSize: [1, 1],
+		},
+		{
+			size: 50,
+			center: [0, 100, 0],
+			textureTopLeft: [halfTexture, 0],
+			textureSize: [halfTexture, halfTexture],
+		},
+		{
+			size: 50,
+			center: [100, 0, 0],
+			textureTopLeft: [0, halfTexture],
+			textureSize: [halfTexture, halfTexture],
+		},
+	];
+
+	const cubeCount = cubes.length;
+	const quadCount = cubeCount * QUADS_PER_CUBE;
+	const vertexCount = cubeCount * CUBE_VERTEX_COUNT;
+
+	const positions = new Float32Array(cubeCount * CUBE_FLOAT_COUNT);
+	const texCoords = new Float32Array(
+		quadCount * VERTICES_PER_QUAD * TEX_COORD_COMPONENTS_PER_VERTEX,
+	);
+	const quadUVRects = new Float32Array(quadCount * UV_COMPONENTS_PER_QUAD);
+
+	cubes.forEach((cube, cubeIndex) => {
+		createTexturedCube({
+			positions,
+			texCoords,
+			quadUVRects,
+			cubeIndex,
+			size: cube.size,
+			center: cube.center,
+			textureTopLeft: cube.textureTopLeft,
+			textureSize: cube.textureSize,
+		});
+	});
+
+	gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
 	gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
 
-	const vertexCount = positions.length / 3;
-	const quadCount = vertexCount / VERTICES_PER_QUAD;
-	
-	const quadIndexBuffer = gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, quadIndexBuffer);
-	setQuadIndices(gl, quadCount);
+	gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+	gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.STATIC_DRAW);
 
-	const quadPalette = createQuadPalette(quadCount);
+	uploadQuadUVRectBuffer(gl, quadUVRectBuffer, quadUVRects, quadCount);
+
+	const texture = gl.createTexture();
+	gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, texture);
+	gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, textureImage);
 
 	let cameraAngleRadians = Math.PI;
 	const fieldOfViewRadians = Math.PI / 2;
@@ -80,7 +170,7 @@ function main() {
 				break;
 			case "ArrowDown":
 				fwdBack = +1;
-				break
+				break;
 			case "ArrowRight":
 				strafe = +1;
 				break;
@@ -97,13 +187,11 @@ function main() {
 				return;
 		}
 
-		// Camera's local basis on the XZ plane
 		const forwardX = Math.sin(cameraAngleRadians);
 		const forwardZ = Math.cos(cameraAngleRadians);
 		const rightX = Math.cos(cameraAngleRadians);
 		const rightZ = -Math.sin(cameraAngleRadians);
 
-		// Normalize diagonals so speed is constant
 		if (fwdBack && strafe) {
 			const inv = 1 / Math.sqrt(2);
 			fwdBack *= inv;
@@ -114,13 +202,21 @@ function main() {
 		cameraPosZ += (forwardZ * fwdBack + rightZ * strafe) * moveStep;
 	});
 
-	// Draw the scene.
 	function drawScene() {
-		gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+		const displayWidth = canvas.clientWidth;
+		const displayHeight = canvas.clientHeight;
+
+		if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+			canvas.width = displayWidth;
+			canvas.height = displayHeight;
+		}
+
+		gl.viewport(0, 0, canvas.width, canvas.height);
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 		gl.enable(gl.CULL_FACE);
 		gl.enable(gl.DEPTH_TEST);
 		gl.useProgram(program);
+
 		gl.enableVertexAttribArray(positionLocation);
 		gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
 		gl.vertexAttribPointer(
@@ -131,24 +227,34 @@ function main() {
 			0,
 			0,
 		);
-		gl.enableVertexAttribArray(quadIndexLocation);
-		gl.bindBuffer(gl.ARRAY_BUFFER, quadIndexBuffer);
+
+		gl.enableVertexAttribArray(texCoordLocation);
+		gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
 		gl.vertexAttribPointer(
-			quadIndexLocation,
-			1,
-			gl.UNSIGNED_BYTE,
+			texCoordLocation,
+			2,
+			gl.FLOAT,
 			false,
 			0,
 			0,
 		);
 
-		// Compute the projection matrix
-		const aspect = canvas.clientWidth / canvas.clientHeight;
+		gl.enableVertexAttribArray(uvRectLocation);
+		gl.bindBuffer(gl.ARRAY_BUFFER, quadUVRectBuffer);
+		gl.vertexAttribPointer(
+			uvRectLocation,
+			4,
+			gl.FLOAT,
+			false,
+			0,
+			0,
+		);
+
+		const aspect = canvas.width / canvas.height;
 		const zNear = 1;
 		const zFar = 2000;
 		const projectionMatrix = perspective(fieldOfViewRadians, aspect, zNear, zFar);
 
-		// Compute a matrix for the camera
 		let cameraMatrix = translation(
 			cameraPosX * 10,
 			cameraPosY * 10,
@@ -156,15 +262,11 @@ function main() {
 		);
 		cameraMatrix = yRotate(cameraMatrix, cameraAngleRadians);
 
-		// Make a view matrix from the camera matrix
 		const viewMatrix = inverse(cameraMatrix);
-
-		// Compute a view projection matrix
 		const viewProjectionMatrix = multiply(projectionMatrix, viewMatrix);
 
 		gl.uniformMatrix4fv(matrixLocation, false, viewProjectionMatrix);
-		gl.uniform3fv(quadColorsLocation, quadPalette);
-		gl.uniform1f(paletteSizeLocation, quadCount);
+		gl.uniform1i(textureLocation, 0);
 		gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
 		window.requestAnimationFrame(drawScene);
 	}
@@ -172,31 +274,48 @@ function main() {
 	drawScene();
 }
 
-function setQuadIndices(gl: WebGLRenderingContext, quadCount: number) {
-	const data = new Uint8Array(quadCount * VERTICES_PER_QUAD);
-	for (let quad = 0; quad < quadCount; quad += 1) {
-		fillBufferWithQuadIndices(data, quad, quad * VERTICES_PER_QUAD);
-	}
-	gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+function uploadQuadUVRectBuffer(
+	gl: WebGLRenderingContext,
+	buffer: WebGLBuffer,
+	quadUVRects: Float32Array,
+	quadCount: number,
+): void {
+	const expanded = expandQuadUVRects(quadUVRects, quadCount);
+	gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+	gl.bufferData(gl.ARRAY_BUFFER, expanded, gl.DYNAMIC_DRAW);
 }
 
-function createQuadPalette(quadCount: number): Float32Array {
-	const palette = new Float32Array(quadCount * COLOR_COMPONENTS_PER_QUAD);
-	const baseColors: Array<[number, number, number]> = [
-		[200, 70, 20],
-		[20, 200, 70],
-		[70, 20, 200],
-		[200, 200, 70],
-		[210, 100, 70],
-		[70, 200, 210],
-	];
-
-	for (let quad = 0; quad < quadCount; quad += 1) {
-		const color = baseColors[quad % baseColors.length];
-		setQuadColor(palette, quad, color[0], color[1], color[2]);
+async function ensureImageReady(image: HTMLImageElement): Promise<void> {
+	if (image.complete && image.naturalWidth !== 0) {
+		return;
 	}
 
-	return palette;
+	if (typeof image.decode === "function") {
+		await image.decode();
+		return;
+	}
+
+	await new Promise<void>((resolve, reject) => {
+		const cleanup = () => {
+			image.removeEventListener("load", handleLoad);
+			image.removeEventListener("error", handleError);
+		};
+
+		const handleLoad = () => {
+			cleanup();
+			resolve();
+		};
+
+		const handleError = () => {
+			cleanup();
+			reject(new Error("Failed to load texture image"));
+		};
+
+		image.addEventListener("load", handleLoad);
+		image.addEventListener("error", handleError);
+	});
 }
 
-main();
+main().catch((error) => {
+	console.error(error);
+});
