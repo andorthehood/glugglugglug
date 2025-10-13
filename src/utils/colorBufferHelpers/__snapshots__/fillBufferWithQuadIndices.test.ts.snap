@@ -1,0 +1,29 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`fillBufferWithQuadIndices > fills a buffer segment with the same quad index 1`] = `
+[
+  2,
+  2,
+  2,
+  2,
+  2,
+  2,
+]
+`;
+
+exports[`fillBufferWithQuadIndices > respects the provided offset 1`] = `
+[
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  5,
+  5,
+  5,
+  5,
+  5,
+  5,
+]
+`;

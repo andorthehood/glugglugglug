@@ -1,19 +1,23 @@
 {
   "name": "glugglugglug",
   "version": "0.0.1",
-  "description": "2D WebGL library",
-  "main": "dist/index.js",
+  "description": "3D WebGL library",
+  "main": "dist/glugglugglug.umd.js",
+  "module": "dist/glugglugglug.es.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "dev": "parcel tests/visual-test/index.html  --port 3003",
-    "build": "tsc",
-    "prebuild": "prettier --write './src/**/*.ts'",
+    "dev": "vite",
+    "build": "vite build && npm run build:types",
+    "build:types": "tsc --emitDeclarationOnly",
     "prepublish": "npm run build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "lint": "eslint --config eslint.config.mjs . --ext .ts,.tsx"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/andormade/glugglug.git"
+    "url": "git+https://github.com/andormade/glugglugglug.git"
   },
   "keywords": [
     "webgl"
@@ -21,12 +25,18 @@
   "author": "Andor Polgar",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/andormade/glugglug/issues"
+    "url": "https://github.com/andormade/glugglugglug/issues"
   },
-  "homepage": "https://github.com/andormade/glugglug#readme",
+  "homepage": "https://github.com/andormade/glugglugglug#readme",
   "devDependencies": {
-    "prettier": "2.2.1",
-    "typescript": "4.1.5",
-    "parcel": "1.12.3"
+    "@eslint/js": "^9.37.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.1",
+    "@typescript-eslint/parser": "^8.46.1",
+    "@vitest/coverage-v8": "^1.6.1",
+    "eslint": "^9.37.0",
+    "typescript": "^5.4.0",
+    "typescript-eslint": "^8.46.1",
+    "vite": "^5.1.0",
+    "vitest": "^1.4.0"
   }
 }

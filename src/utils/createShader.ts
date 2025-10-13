@@ -1,7 +1,7 @@
 const createShader = function (
 	gl: WebGL2RenderingContext | WebGLRenderingContext,
 	shaderSource: string,
-	shaderType: number
+	shaderType: number,
 ): WebGLShader {
 	const shader = gl.createShader(shaderType);
 	gl.shaderSource(shader, shaderSource);
@@ -9,7 +9,7 @@ const createShader = function (
 
 	if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
 		const info = gl.getShaderInfoLog(shader);
-		console.error('Could not compile web gl shader', info);
+		console.error("Could not compile web gl shader", info);
 	}
 
 	return shader;

@@ -1,10 +1,10 @@
 const createProgram = function (
 	gl: WebGL2RenderingContext | WebGLRenderingContext,
-	shaders: WebGLShader[]
+	shaders: WebGLShader[],
 ): WebGLProgram {
-	let program = gl.createProgram();
+	const program = gl.createProgram();
 
-	shaders.forEach(shader => {
+	shaders.forEach((shader) => {
 		console.log(shader);
 		gl.attachShader(program, shader);
 	});
@@ -15,7 +15,7 @@ const createProgram = function (
 
 	if (!linked) {
 		const lastError = gl.getProgramInfoLog(program);
-		console.error('Error in program linking: ' + lastError);
+		console.error("Error in program linking: " + lastError);
 		gl.deleteProgram(program);
 		return null;
 	}

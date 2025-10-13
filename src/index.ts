@@ -1,263 +1,202 @@
 import {
-	fillBufferWithRectangleVertices,
-	fillBufferWithSpriteCoordinates,
-	fillBufferWithLineVertices,
-} from './utils/buffer';
-import createShader from './utils/createShader';
-import createProgram from './utils/createProgram';
-import createTexture from './utils/createTexture';
-import vertexShader from './shaders/vertexShader';
-import textureShader from './shaders/fragmentShader';
+	translation,
+	yRotate,
+	inverse,
+	multiply,
+	perspective,
+} from "./utils/matrix";
 
-export type SpriteCoordinates = {
-	spriteWidth: number;
-	spriteHeight: number;
-	x: number;
-	y: number;
-};
+import createProgram from "./utils/createProgram";
+import fragmentShader from "./shaders/fragmentShader.glsl?raw";
+import vertexShader from "./shaders/vertexShader.glsl?raw";
+import createShader from "./utils/createShader";
+import { CUBE_FLOAT_COUNT, fillBufferWithCubeVertices } from "./utils/positionBufferHelpers";
+import {
+	VERTICES_PER_QUAD,
+	COLOR_COMPONENTS_PER_QUAD,
+	setQuadColor,
+	fillBufferWithQuadIndices,
+} from "./utils/colorBufferHelpers";
 
-export type SpriteLookup = (...args: any[]) => SpriteCoordinates;
+function main() {
+	const canvas = document.getElementById("canvas") as HTMLCanvasElement;
+	const gl = canvas.getContext("webgl");
 
-export class Engine {
-	program: WebGLProgram;
-	gl: WebGL2RenderingContext | WebGLRenderingContext;
-	glPositionBuffer: WebGLBuffer;
-	glTextureCoordinateBuffer: WebGLBuffer;
-	vertexBuffer: Float32Array;
-	bufferPointer: number;
-	textureCoordinateBuffer: Float32Array;
-	spriteSheet: WebGLTexture;
-	spriteSheetWidth: number;
-	spriteSheetHeight: number;
-	frameCounter: number;
-	startTime: number;
-	lastRenderFinishTime: number;
-	lastRenderStartTime: number;
-	offsetX: number;
-	offsetY: number;
-	offsetGroups: number[][];
-	bufferSize: number;
-	bufferCounter: number;
-	spriteLookup: SpriteLookup;
+	const program = createProgram(gl, [
+		createShader(gl, vertexShader, gl.VERTEX_SHADER),
+		createShader(gl, fragmentShader, gl.FRAGMENT_SHADER),
+	]);
 
-	/**
-	 * If enabled, it makes the render function block the main thread until the GPU finishes rendering.
-	 * Otherwise rendering is asynchronous, and there's no other way to get notified of the end of it.
-	 * It makes possible to measure the time a whole render cycle took.
-	 */
-	isPerformanceMeasurementMode: boolean;
+	const positionLocation = gl.getAttribLocation(program, "a_position");
+	const quadIndexLocation = gl.getAttribLocation(program, "a_quadIndex");
+	const matrixLocation = gl.getUniformLocation(program, "u_matrix");
+	const quadColorsLocation = gl.getUniformLocation(program, "u_quadColors[0]");
+	const paletteSizeLocation = gl.getUniformLocation(program, "u_paletteSize");
 
-	constructor(canvas: HTMLCanvasElement) {
-		this.gl = canvas.getContext('webgl', { antialias: false });
-
-		this.program = createProgram(this.gl, [
-			createShader(this.gl, textureShader, this.gl.FRAGMENT_SHADER),
-			createShader(this.gl, vertexShader, this.gl.VERTEX_SHADER),
-		]);
-
-		const a_position = this.gl.getAttribLocation(this.program, 'a_position');
-		const a_texcoord = this.gl.getAttribLocation(this.program, 'a_texcoord');
-		this.glTextureCoordinateBuffer = this.gl.createBuffer();
-		this.glPositionBuffer = this.gl.createBuffer();
-
-		this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
-		this.gl.clearColor(0, 0, 0, 1.0);
-		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
-		this.gl.useProgram(this.program);
-		this.setUniform('u_resolution', canvas.width, canvas.height);
-
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.glPositionBuffer);
-		this.gl.vertexAttribPointer(a_position, 2, this.gl.FLOAT, false, 0, 0);
-
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.glTextureCoordinateBuffer);
-		this.gl.vertexAttribPointer(a_texcoord, 2, this.gl.FLOAT, false, 0, 0);
-
-		this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
-		this.gl.enable(this.gl.BLEND);
-
-		this.gl.enableVertexAttribArray(a_texcoord);
-		this.gl.enableVertexAttribArray(a_position);
-
-		this.growBuffer(10000);
-
-		this.startTime = Date.now();
-		this.frameCounter = 0;
-		this.isPerformanceMeasurementMode = false;
-		this.offsetX = 0;
-		this.offsetY = 0;
-		this.offsetGroups = [];
+	if (quadIndexLocation === -1) {
+		throw new Error("Failed to locate attribute a_quadIndex");
 	}
 
-	startGroup(x: number, y: number) {
-		this.offsetX += x;
-		this.offsetY += y;
-		this.offsetGroups.push([x, y]);
+	if (!quadColorsLocation || !paletteSizeLocation) {
+		throw new Error("Failed to locate quad color uniforms");
 	}
 
-	endGroup() {
-		const [x, y] = this.offsetGroups.pop();
-		this.offsetX -= x;
-		this.offsetY -= y;
-	}
+	const positionBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
 
-	growBuffer(newSize: number) {
-		this.bufferSize = newSize * 12;
-		this.bufferPointer = 0;
-		this.bufferCounter = 0;
-		this.vertexBuffer = new Float32Array(this.bufferSize);
-		this.textureCoordinateBuffer = new Float32Array(this.bufferSize);
-	}
+	const positions = new Float32Array(CUBE_FLOAT_COUNT * 3);
+	fillBufferWithCubeVertices(positions, 0, 100);
+	fillBufferWithCubeVertices(positions, CUBE_FLOAT_COUNT, 50, [0, 100, 0]);
+	fillBufferWithCubeVertices(positions, CUBE_FLOAT_COUNT * 2, 50, [100, 0, 0]);
+	gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
 
-	resize(width: number, height: number) {
-		if (width === this.gl.canvas.width && height === this.gl.canvas.height) {
-			return;
+	const vertexCount = positions.length / 3;
+	const quadCount = vertexCount / VERTICES_PER_QUAD;
+	
+	const quadIndexBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, quadIndexBuffer);
+	setQuadIndices(gl, quadCount);
+
+	const quadPalette = createQuadPalette(quadCount);
+
+	let cameraAngleRadians = Math.PI;
+	const fieldOfViewRadians = Math.PI / 2;
+
+	const cameraPosY = 0;
+	let cameraPosX = 0;
+	let cameraPosZ = -20;
+
+	const moveStep = 1;
+
+	window.addEventListener("keydown", (event) => {
+		let fwdBack = 0;
+		let strafe = 0;
+
+		event.preventDefault();
+
+		switch (event.code) {
+			case "ArrowUp":
+				fwdBack = -1;
+				break;
+			case "ArrowDown":
+				fwdBack = +1;
+				break
+			case "ArrowRight":
+				strafe = +1;
+				break;
+			case "ArrowLeft":
+				strafe = -1;
+				break;
+			case "KeyA":
+				cameraAngleRadians += 0.1;
+				break;
+			case "KeyD":
+				cameraAngleRadians -= 0.1;
+				break;
+			default:
+				return;
 		}
 
-		this.gl.canvas.width = width;
-		this.gl.canvas.height = height;
-		this.gl.viewport(0, 0, width, height);
-		this.setUniform('u_resolution', width, height);
-	}
+		// Camera's local basis on the XZ plane
+		const forwardX = Math.sin(cameraAngleRadians);
+		const forwardZ = Math.cos(cameraAngleRadians);
+		const rightX = Math.cos(cameraAngleRadians);
+		const rightZ = -Math.sin(cameraAngleRadians);
 
-	render(callback: (timeToRender: string, fps: number, triangles: number, maxTriangles: number) => void) {
-		const triangles = this.bufferCounter / 2;
-		const maxTriangles = Math.floor(this.vertexBuffer.length / 2);
-		this.bufferPointer = 0;
-		this.bufferCounter = 0;
-
-		const fps = Math.floor(this.frameCounter / ((Date.now() - this.startTime) / 1000));
-		const timeToRender = (this.lastRenderStartTime - this.lastRenderFinishTime).toFixed(2);
-
-		this.lastRenderStartTime = performance.now();
-
-		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
-
-		callback(timeToRender, fps, triangles, maxTriangles);
-
-		this.rendervertexBuffer();
-
-		this.lastRenderFinishTime = performance.now();
-		this.frameCounter++;
-
-		window.requestAnimationFrame(() => {
-			this.render(callback);
-		});
-	}
-
-	/**
-	 * Fills the line drawing buffer with indices of a rectangle.
-	 * @param x top left corner X coordinate
-	 * @param y top left corner Y coordinate
-	 * @param width width of the rectanlge
-	 * @param height height of the reactanlge
-	 */
-	drawRectangle(x: number, y: number, width: number, height: number, sprite: any, thickness: number) {
-		this.drawLine(x, y, x + width, y, sprite, thickness);
-		this.drawLine(x + width, y, x + width, y + height, sprite, thickness);
-		this.drawLine(x + width, y + height, x, y + height, sprite, thickness);
-		this.drawLine(x, y + height, x, y, sprite, thickness);
-	}
-
-	loadSpriteSheet(image: HTMLImageElement | HTMLCanvasElement | OffscreenCanvas) {
-		this.spriteSheet = createTexture(this.gl, image);
-		this.spriteSheetWidth = image.width;
-		this.spriteSheetHeight = image.height;
-	}
-
-	drawSpriteFromCoordinates(
-		x: number,
-		y: number,
-		width: number,
-		height: number,
-		spriteX: number,
-		spriteY: number,
-		spriteWidth: number = width,
-		spriteHeight: number = height
-	): void {
-		x = x + this.offsetX;
-		y = y + this.offsetY;
-		fillBufferWithRectangleVertices(this.vertexBuffer, this.bufferPointer, x, y, width, height);
-		fillBufferWithSpriteCoordinates(
-			this.textureCoordinateBuffer,
-			this.bufferPointer,
-			spriteX,
-			spriteY,
-			spriteWidth,
-			spriteHeight,
-			this.spriteSheetWidth,
-			this.spriteSheetHeight
-		);
-
-		this.bufferCounter += 12;
-		this.bufferPointer = this.bufferCounter % this.bufferSize;
-	}
-
-	drawLine(x1: number, y1: number, x2: number, y2: number, sprite: any, thickness: number) {
-		x1 = x1 + this.offsetX;
-		y1 = y1 + this.offsetY;
-		x2 = x2 + this.offsetX;
-		y2 = y2 + this.offsetY;
-		const { x, y, spriteWidth, spriteHeight } = this.spriteLookup(sprite);
-
-		fillBufferWithLineVertices(this.vertexBuffer, this.bufferPointer, x1, y1, x2, y2, thickness);
-
-		fillBufferWithSpriteCoordinates(
-			this.textureCoordinateBuffer,
-			this.bufferPointer,
-			x,
-			y,
-			spriteWidth,
-			spriteHeight,
-			this.spriteSheetWidth,
-			this.spriteSheetHeight
-		);
-
-		this.bufferCounter += 12;
-		this.bufferPointer = this.bufferCounter % this.bufferSize;
-	}
-
-	drawSprite(posX: number, posY: number, sprite: string, width?: number, height?: number): void {
-		const { x, y, spriteWidth, spriteHeight } = this.spriteLookup(sprite);
-		this.drawSpriteFromCoordinates(
-			posX,
-			posY,
-			width || spriteWidth,
-			height || spriteHeight,
-			x,
-			y,
-			spriteWidth,
-			spriteHeight
-		);
-	}
-
-	rendervertexBuffer() {
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.glTextureCoordinateBuffer);
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.textureCoordinateBuffer, this.gl.STATIC_DRAW);
-
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.glPositionBuffer);
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.vertexBuffer, this.gl.STATIC_DRAW);
-
-		this.gl.drawArrays(this.gl.TRIANGLES, 0, Math.min(this.bufferCounter / 2, this.bufferSize / 2));
-
-		if (this.isPerformanceMeasurementMode) {
-			this.gl.finish();
+		// Normalize diagonals so speed is constant
+		if (fwdBack && strafe) {
+			const inv = 1 / Math.sqrt(2);
+			fwdBack *= inv;
+			strafe *= inv;
 		}
+
+		cameraPosX += (forwardX * fwdBack + rightX * strafe) * moveStep;
+		cameraPosZ += (forwardZ * fwdBack + rightZ * strafe) * moveStep;
+	});
+
+	// Draw the scene.
+	function drawScene() {
+		gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+		gl.enable(gl.CULL_FACE);
+		gl.enable(gl.DEPTH_TEST);
+		gl.useProgram(program);
+		gl.enableVertexAttribArray(positionLocation);
+		gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+		gl.vertexAttribPointer(
+			positionLocation,
+			3,
+			gl.FLOAT,
+			false,
+			0,
+			0,
+		);
+		gl.enableVertexAttribArray(quadIndexLocation);
+		gl.bindBuffer(gl.ARRAY_BUFFER, quadIndexBuffer);
+		gl.vertexAttribPointer(
+			quadIndexLocation,
+			1,
+			gl.UNSIGNED_BYTE,
+			false,
+			0,
+			0,
+		);
+
+		// Compute the projection matrix
+		const aspect = canvas.clientWidth / canvas.clientHeight;
+		const zNear = 1;
+		const zFar = 2000;
+		const projectionMatrix = perspective(fieldOfViewRadians, aspect, zNear, zFar);
+
+		// Compute a matrix for the camera
+		let cameraMatrix = translation(
+			cameraPosX * 10,
+			cameraPosY * 10,
+			cameraPosZ * 10,
+		);
+		cameraMatrix = yRotate(cameraMatrix, cameraAngleRadians);
+
+		// Make a view matrix from the camera matrix
+		const viewMatrix = inverse(cameraMatrix);
+
+		// Compute a view projection matrix
+		const viewProjectionMatrix = multiply(projectionMatrix, viewMatrix);
+
+		gl.uniformMatrix4fv(matrixLocation, false, viewProjectionMatrix);
+		gl.uniform3fv(quadColorsLocation, quadPalette);
+		gl.uniform1f(paletteSizeLocation, quadCount);
+		gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+		window.requestAnimationFrame(drawScene);
 	}
 
-	setSpriteLookup(spriteLookup: SpriteLookup) {
-		this.spriteLookup = spriteLookup;
-	}
-
-	drawText(posX: number, posY: number, text: string, font: string = '', letterSpacing: number = 1) {
-		//console.log(this.spriteLookup);
-		for (let i = 0; i < text.length; i++) {
-			const { x, y, spriteWidth, spriteHeight } = this.spriteLookup(text[i]);
-			this.drawSpriteFromCoordinates(posX + i * (spriteWidth + letterSpacing), posY, spriteWidth, spriteHeight, x, y);
-		}
-	}
-
-	setUniform(name, ...values: any) {
-		const location = this.gl.getUniformLocation(this.program, name);
-		this.gl['uniform' + values.length + 'f'](location, ...values);
-	}
+	drawScene();
 }
+
+function setQuadIndices(gl: WebGLRenderingContext, quadCount: number) {
+	const data = new Uint8Array(quadCount * VERTICES_PER_QUAD);
+	for (let quad = 0; quad < quadCount; quad += 1) {
+		fillBufferWithQuadIndices(data, quad, quad * VERTICES_PER_QUAD);
+	}
+	gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+}
+
+function createQuadPalette(quadCount: number): Float32Array {
+	const palette = new Float32Array(quadCount * COLOR_COMPONENTS_PER_QUAD);
+	const baseColors: Array<[number, number, number]> = [
+		[200, 70, 20],
+		[20, 200, 70],
+		[70, 20, 200],
+		[200, 200, 70],
+		[210, 100, 70],
+		[70, 200, 210],
+	];
+
+	for (let quad = 0; quad < quadCount; quad += 1) {
+		const color = baseColors[quad % baseColors.length];
+		setQuadColor(palette, quad, color[0], color[1], color[2]);
+	}
+
+	return palette;
+}
+
+main();

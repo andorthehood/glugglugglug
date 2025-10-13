@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>glugglugglug playground</title>
+	<!-- vertex shader -->
+	<script id="vertex-shader-3d" type="x-shader/x-vertex">
+	attribute vec4 a_position;
+	attribute vec4 a_color;
+	
+	uniform mat4 u_matrix;
+	
+	varying vec4 v_color;
+	
+	void main() {
+	  // Multiply the position by the matrix.
+	  gl_Position = u_matrix * a_position;
+	
+	  // Pass the color to the fragment shader.
+	  v_color = a_color;
+	}
+	</script>
+	<!-- fragment shader -->
+	<script id="fragment-shader-3d" type="x-shader/x-fragment">
+	precision mediump float;
+	
+	// Passed in from the vertex shader.
+	varying vec4 v_color;
+	
+	void main() {
+	   gl_FragColor = v_color;
+	}
+	</script>
+	<style>
+		body,
+		html {
+			margin: 0;
+			height: 100%;
+			background: #111;
+			color: #ddd;
+			font-family: system-ui, sans-serif;
+		}
+
+		#app {
+			display: flex;
+			flex-direction: column;
+			height: 100%;
+		}
+
+		header {
+			padding: 0.75rem 1.5rem;
+			border-bottom: 1px solid #2a2a2a;
+			background: rgba(0, 0, 0, 0.6);
+		}
+
+		main {
+			flex: 1;
+			display: flex;
+		}
+
+		canvas {
+			width: 640px;
+			height: 480px;
+			image-rendering: pixelated;
+		}
+	</style>
+</head>
+
+<body>
+	<div id="app">
+		<header>
+			<h1>glugglugglug playground</h1>
+			<p>Use the arrow keys to move and A/D to rotate.</p>
+		</header>
+		<main>
+			<canvas id="canvas"></canvas>
+		</main>
+	</div>
+
+	<script type="module">
+		import "./src/index.ts";
+	</script>
+</body>
+
+</html>

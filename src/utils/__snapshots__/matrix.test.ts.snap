@@ -1,0 +1,358 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`matrix utilities > builds a perspective projection matrix 1`] = `
+[
+  [
+    0.974279,
+    0,
+    0,
+    0,
+  ],
+  [
+    0,
+    1.732051,
+    0,
+    0,
+  ],
+  [
+    0,
+    0,
+    -1.01005,
+    -1,
+  ],
+  [
+    0,
+    0,
+    -2.01005,
+    0,
+  ],
+]
+`;
+
+exports[`matrix utilities > builds an orthographic projection matrix with the current implementation 1`] = `
+[
+  [
+    0.5,
+    0,
+    0,
+    0,
+  ],
+  [
+    0,
+    -1,
+    0,
+    0,
+  ],
+  [
+    0,
+    0,
+    0.25,
+    0,
+  ],
+  [
+    -1,
+    1,
+    0,
+    1,
+  ],
+]
+`;
+
+exports[`matrix utilities > composes transforms via helpers 1`] = `
+[
+  [
+    0.707107,
+    1.853553,
+    0.253653,
+    0,
+  ],
+  [
+    -1.224745,
+    0.253653,
+    1.56066,
+    0,
+  ],
+  [
+    1.414214,
+    -0.707107,
+    1.224745,
+    0,
+  ],
+  [
+    5,
+    -3,
+    2,
+    1,
+  ],
+]
+`;
+
+exports[`matrix utilities > creates rotation matrices around each axis 1`] = `
+[
+  [
+    1,
+    0,
+    0,
+    0,
+  ],
+  [
+    0,
+    0.707107,
+    0.707107,
+    0,
+  ],
+  [
+    0,
+    -0.707107,
+    0.707107,
+    0,
+  ],
+  [
+    0,
+    0,
+    0,
+    1,
+  ],
+]
+`;
+
+exports[`matrix utilities > creates rotation matrices around each axis 2`] = `
+[
+  [
+    0.707107,
+    0,
+    -0.707107,
+    0,
+  ],
+  [
+    0,
+    1,
+    0,
+    0,
+  ],
+  [
+    0.707107,
+    0,
+    0.707107,
+    0,
+  ],
+  [
+    0,
+    0,
+    0,
+    1,
+  ],
+]
+`;
+
+exports[`matrix utilities > creates rotation matrices around each axis 3`] = `
+[
+  [
+    0.707107,
+    0.707107,
+    0,
+    0,
+  ],
+  [
+    -0.707107,
+    0.707107,
+    0,
+    0,
+  ],
+  [
+    0,
+    0,
+    1,
+    0,
+  ],
+  [
+    0,
+    0,
+    0,
+    1,
+  ],
+]
+`;
+
+exports[`matrix utilities > inverts affine matrices 1`] = `
+[
+  [
+    1.732051,
+    0,
+    -1,
+    0,
+  ],
+  [
+    0,
+    0.5,
+    0,
+    0,
+  ],
+  [
+    1.5,
+    0,
+    2.598076,
+    0,
+  ],
+  [
+    4,
+    -2,
+    7,
+    1,
+  ],
+]
+`;
+
+exports[`matrix utilities > inverts affine matrices 2`] = `
+[
+  [
+    0.433013,
+    0,
+    0.166667,
+    0,
+  ],
+  [
+    0,
+    2,
+    0,
+    0,
+  ],
+  [
+    -0.25,
+    0,
+    0.288675,
+    0,
+  ],
+  [
+    0.017949,
+    4,
+    -2.687393,
+    1,
+  ],
+]
+`;
+
+exports[`matrix utilities > inverts affine matrices 3`] = `
+[
+  [
+    1,
+    0,
+    0,
+    0,
+  ],
+  [
+    0,
+    1,
+    0,
+    0,
+  ],
+  [
+    0,
+    0,
+    1,
+    0,
+  ],
+  [
+    0,
+    0,
+    0,
+    1,
+  ],
+]
+`;
+
+exports[`matrix utilities > multiplies a vector by a matrix 1`] = `
+[
+  5,
+  -3,
+  9,
+  1,
+]
+`;
+
+exports[`matrix utilities > multiplies two matrices in column-major order 1`] = `
+[
+  [
+    2,
+    0,
+    0,
+    0,
+  ],
+  [
+    0,
+    3,
+    0,
+    0,
+  ],
+  [
+    0,
+    0,
+    4,
+    0,
+  ],
+  [
+    1,
+    2,
+    3,
+    1,
+  ],
+]
+`;
+
+exports[`matrix utilities > multiplies two matrices in column-major order 2`] = `
+[
+  [
+    2,
+    0,
+    0,
+    0,
+  ],
+  [
+    0,
+    3,
+    0,
+    0,
+  ],
+  [
+    0,
+    0,
+    4,
+    0,
+  ],
+  [
+    2,
+    6,
+    12,
+    1,
+  ],
+]
+`;
+
+exports[`matrix utilities > translates a matrix via the helper 1`] = `
+[
+  [
+    1,
+    0,
+    0,
+    0,
+  ],
+  [
+    0,
+    2,
+    0,
+    0,
+  ],
+  [
+    0,
+    0,
+    3,
+    0,
+  ],
+  [
+    4,
+    10,
+    18,
+    1,
+  ],
+]
+`;

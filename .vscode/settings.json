@@ -26,4 +26,6 @@
         "**/dist/**": true,
         "**/.cache/**": true
     },
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4
 }
