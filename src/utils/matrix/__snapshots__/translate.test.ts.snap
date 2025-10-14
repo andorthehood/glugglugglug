@@ -1,0 +1,30 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`translate > translates a matrix via the helper 1`] = `
+[
+  [
+    1,
+    0,
+    0,
+    0,
+  ],
+  [
+    0,
+    2,
+    0,
+    0,
+  ],
+  [
+    0,
+    0,
+    3,
+    0,
+  ],
+  [
+    4,
+    10,
+    18,
+    1,
+  ],
+]
+`;

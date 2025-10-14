@@ -6,12 +6,11 @@ import {
 	perspective,
 } from "./utils/matrix";
 
-import createProgram from "./utils/createProgram";
+import createProgram from "./utils/webgl/createProgram";
 import fragmentShader from "./shaders/fragmentShader.glsl?raw";
 import vertexShader from "./shaders/vertexShader.glsl?raw";
-import createShader from "./utils/createShader";
-import { CUBE_FLOAT_COUNT, CUBE_VERTEX_COUNT } from "./utils/positionBufferHelpers";
-import { VERTICES_PER_QUAD } from "./utils/colorBufferHelpers";
+import createShader from "./utils/webgl/createShader";
+import { CUBE_FLOAT_COUNT, CUBE_VERTEX_COUNT, VERTICES_PER_QUAD } from "./utils/positionBuffer";
 import {
 	TEX_COORD_COMPONENTS_PER_VERTEX,
 	UV_COMPONENTS_PER_QUAD,

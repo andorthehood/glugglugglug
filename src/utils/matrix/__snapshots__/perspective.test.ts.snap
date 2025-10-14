@@ -1,0 +1,30 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`perspective > builds a perspective projection matrix 1`] = `
+[
+  [
+    0.974279,
+    0,
+    0,
+    0,
+  ],
+  [
+    0,
+    1.732051,
+    0,
+    0,
+  ],
+  [
+    0,
+    0,
+    -1.01005,
+    -1,
+  ],
+  [
+    0,
+    0,
+    -2.01005,
+    0,
+  ],
+]
+`;

@@ -1,0 +1,30 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`projection > builds an orthographic projection matrix with the current implementation 1`] = `
+[
+  [
+    0.5,
+    0,
+    0,
+    0,
+  ],
+  [
+    0,
+    -1,
+    0,
+    0,
+  ],
+  [
+    0,
+    0,
+    0.25,
+    0,
+  ],
+  [
+    -1,
+    1,
+    0,
+    1,
+  ],
+]
+`;

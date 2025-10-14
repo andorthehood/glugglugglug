@@ -1,0 +1,88 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`inverse > inverts affine matrices 1`] = `
+[
+  [
+    1.732051,
+    0,
+    -1,
+    0,
+  ],
+  [
+    0,
+    0.5,
+    0,
+    0,
+  ],
+  [
+    1.5,
+    0,
+    2.598076,
+    0,
+  ],
+  [
+    4,
+    -2,
+    7,
+    1,
+  ],
+]
+`;
+
+exports[`inverse > inverts affine matrices 2`] = `
+[
+  [
+    0.433013,
+    0,
+    0.166667,
+    0,
+  ],
+  [
+    0,
+    2,
+    0,
+    0,
+  ],
+  [
+    -0.25,
+    0,
+    0.288675,
+    0,
+  ],
+  [
+    0.017949,
+    4,
+    -2.687393,
+    1,
+  ],
+]
+`;
+
+exports[`inverse > inverts affine matrices 3`] = `
+[
+  [
+    1,
+    0,
+    0,
+    0,
+  ],
+  [
+    0,
+    1,
+    0,
+    0,
+  ],
+  [
+    0,
+    0,
+    1,
+    0,
+  ],
+  [
+    0,
+    0,
+    0,
+    1,
+  ],
+]
+`;

@@ -2,8 +2,8 @@ import {
 	fillBufferWithCubeVertices,
 	CUBE_FLOAT_COUNT,
 	CUBE_VERTEX_COUNT,
-} from "./positionBufferHelpers";
-import { VERTICES_PER_QUAD } from "./colorBufferHelpers";
+	VERTICES_PER_QUAD,
+} from "./positionBuffer";
 import {
 	setQuadUVRect,
 	TEX_COORD_COMPONENTS_PER_VERTEX,

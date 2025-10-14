@@ -1,0 +1,30 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`scale > composes transforms via helpers 1`] = `
+[
+  [
+    0.707107,
+    1.853553,
+    0.253653,
+    0,
+  ],
+  [
+    -1.224745,
+    0.253653,
+    1.56066,
+    0,
+  ],
+  [
+    1.414214,
+    -0.707107,
+    1.224745,
+    0,
+  ],
+  [
+    5,
+    -3,
+    2,
+    1,
+  ],
+]
+`;

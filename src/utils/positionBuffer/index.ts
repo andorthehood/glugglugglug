@@ -9,3 +9,5 @@ export {
 	CUBOID_VERTEX_COUNT,
 	CUBOID_FLOAT_COUNT,
 } from "./fillBufferWithCuboidVertices";
+
+export { VERTICES_PER_QUAD } from "./constants";

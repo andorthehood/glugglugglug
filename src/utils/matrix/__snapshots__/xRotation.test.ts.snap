@@ -1,0 +1,30 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`xRotation > creates a rotation matrix around the x axis 1`] = `
+[
+  [
+    1,
+    0,
+    0,
+    0,
+  ],
+  [
+    0,
+    0.707107,
+    0.707107,
+    0,
+  ],
+  [
+    0,
+    -0.707107,
+    0.707107,
+    0,
+  ],
+  [
+    0,
+    0,
+    0,
+    1,
+  ],
+]
+`;

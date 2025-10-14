@@ -1,0 +1,10 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`vectorMultiply > multiplies a vector by a matrix 1`] = `
+[
+  5,
+  -3,
+  9,
+  1,
+]
+`;

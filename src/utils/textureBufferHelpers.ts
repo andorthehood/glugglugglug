@@ -1,4 +1,4 @@
-import { VERTICES_PER_QUAD } from "./colorBufferHelpers";
+import { VERTICES_PER_QUAD } from "./positionBuffer";
 
 export const TEX_COORD_COMPONENTS_PER_VERTEX = 2;
 export const UV_COMPONENTS_PER_QUAD = 4;
