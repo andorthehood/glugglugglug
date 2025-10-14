@@ -1,3 +1,8 @@
+/**
+ * Produces a matrix representing rotation around the z axis.
+ * @param angleInRadians The rotation angle in radians.
+ * @returns A rotation matrix that rotates around the z axis.
+ */
 export function zRotation(angleInRadians: number) {
 	const c = Math.cos(angleInRadians);
 	const s = Math.sin(angleInRadians);

@@ -67,27 +67,27 @@ const FACE_TEX_COORD_TEMPLATES: ReadonlyArray<Float32Array> = [
 type Vec2 = [number, number];
 type Vec3 = [number, number, number];
 
-export interface CreateTexturedCubeParams {
-	positions: Float32Array;
-	texCoords: Float32Array;
-	quadUVRects: Float32Array;
-	cubeIndex: number;
-	size: number;
-	center?: Vec3;
-	textureTopLeft: Vec2;
-	textureSize: Vec2;
-}
-
-export function createTexturedCube({
-	positions,
-	texCoords,
-	quadUVRects,
-	cubeIndex,
-	size,
-	center = [0, 0, 0],
-	textureTopLeft,
-	textureSize,
-}: CreateTexturedCubeParams): void {
+/**
+ * Fills buffer views with the geometry and UV data for a textured cube.
+ * @param positions Shared vertex position buffer.
+ * @param texCoords Shared texture coordinate buffer.
+ * @param quadUVRects Buffer storing per-quad UV rectangles.
+ * @param cubeIndex Index of the cube within the shared buffers.
+ * @param size Edge length of the cube.
+ * @param center Optional cube center; defaults to the origin.
+ * @param textureTopLeft UV coordinates of the texture region's top-left corner.
+ * @param textureSize Width and height of the texture region in UV space.
+ */
+export function createTexturedCube(
+	positions: Float32Array,
+	texCoords: Float32Array,
+	quadUVRects: Float32Array,
+	cubeIndex: number,
+	size: number,
+	center: Vec3 = [0, 0, 0],
+	textureTopLeft: Vec2,
+	textureSize: Vec2,
+): void {
 	const [uLeft, vTop] = textureTopLeft;
 	const [width, height] = textureSize;
 	const vMin = 1 - (vTop + height);

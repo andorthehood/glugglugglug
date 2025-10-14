@@ -10,11 +10,11 @@ import createProgram from "./utils/webgl/createProgram";
 import fragmentShader from "./shaders/fragmentShader.glsl?raw";
 import vertexShader from "./shaders/vertexShader.glsl?raw";
 import createShader from "./utils/webgl/createShader";
+import { uploadQuadUVRectBuffer } from "./utils/webgl/uploadQuadUVRectBuffer";
 import { CUBE_FLOAT_COUNT, CUBE_VERTEX_COUNT, VERTICES_PER_QUAD } from "./utils/positionBuffer";
 import {
 	TEX_COORD_COMPONENTS_PER_VERTEX,
 	UV_COMPONENTS_PER_QUAD,
-	expandQuadUVRects,
 } from "./utils/textureBufferHelpers";
 import { createTexturedCube, QUADS_PER_CUBE } from "./utils/createTexturedCube";
 
@@ -118,16 +118,16 @@ async function main() {
 	const quadUVRects = new Float32Array(quadCount * UV_COMPONENTS_PER_QUAD);
 
 	cubes.forEach((cube, cubeIndex) => {
-		createTexturedCube({
+		createTexturedCube(
 			positions,
 			texCoords,
 			quadUVRects,
 			cubeIndex,
-			size: cube.size,
-			center: cube.center,
-			textureTopLeft: cube.textureTopLeft,
-			textureSize: cube.textureSize,
-		});
+			cube.size,
+			cube.center,
+			cube.textureTopLeft,
+			cube.textureSize,
+		);
 	});
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -271,17 +271,6 @@ async function main() {
 	}
 
 	drawScene();
-}
-
-function uploadQuadUVRectBuffer(
-	gl: WebGLRenderingContext,
-	buffer: WebGLBuffer,
-	quadUVRects: Float32Array,
-	quadCount: number,
-): void {
-	const expanded = expandQuadUVRects(quadUVRects, quadCount);
-	gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-	gl.bufferData(gl.ARRAY_BUFFER, expanded, gl.DYNAMIC_DRAW);
 }
 
 async function ensureImageReady(image: HTMLImageElement): Promise<void> {

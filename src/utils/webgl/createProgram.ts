@@ -1,3 +1,9 @@
+/**
+ * Links a WebGL program from compiled shader objects.
+ * @param gl WebGL rendering context used for linking.
+ * @param shaders Collection of compiled shaders to attach.
+ * @returns The linked program, or `null` if linking fails.
+ */
 const createProgram = function (
 	gl: WebGL2RenderingContext | WebGLRenderingContext,
 	shaders: WebGLShader[],

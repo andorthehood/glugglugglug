@@ -1,3 +1,8 @@
+/**
+ * Computes the inverse of a 4x4 matrix.
+ * @param m Matrix to invert.
+ * @returns The inverse matrix.
+ */
 export function inverse(m: number[]) {
 	const m00 = m[0 * 4 + 0];
 	const m01 = m[0 * 4 + 1];

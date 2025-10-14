@@ -1,3 +1,9 @@
+/**
+ * Multiplies two 4x4 matrices using column-major order.
+ * @param a Left-hand operand.
+ * @param b Right-hand operand.
+ * @returns The resulting matrix `a * b`.
+ */
 export function multiply(a: number[], b: number[]) {
 	const a00 = a[0 * 4 + 0];
 	const a01 = a[0 * 4 + 1];

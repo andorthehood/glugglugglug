@@ -1,3 +1,11 @@
+/**
+ * Builds a perspective projection matrix in column-major order.
+ * @param fieldOfViewInRadians Vertical field of view in radians.
+ * @param aspect Ratio of viewport width to height.
+ * @param near Distance to the near clipping plane.
+ * @param far Distance to the far clipping plane.
+ * @returns A 4x4 perspective projection matrix.
+ */
 export function perspective(
 	fieldOfViewInRadians: number,
 	aspect: number,

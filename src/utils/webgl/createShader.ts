@@ -1,3 +1,10 @@
+/**
+ * Compiles a shader of the specified type from GLSL source.
+ * @param gl WebGL rendering context used for compilation.
+ * @param shaderSource GLSL source code for the shader.
+ * @param shaderType Shader stage constant, e.g. `gl.VERTEX_SHADER`.
+ * @returns The compiled shader object.
+ */
 const createShader = function (
 	gl: WebGL2RenderingContext | WebGLRenderingContext,
 	shaderSource: string,

@@ -1,3 +1,9 @@
+/**
+ * Multiplies a vector by a 4x4 matrix using column-major order.
+ * @param v Vector with four components.
+ * @param m Matrix to multiply by.
+ * @returns The transformed vector.
+ */
 export function vectorMultiply(v: number[], m: number[]) {
 	const dst = [];
 	for (let i = 0; i < 4; ++i) {
