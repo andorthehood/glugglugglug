@@ -186,6 +186,15 @@ async function main() {
 
 	let cameraAngleRadians = Math.PI;
 	const fieldOfViewRadians = Math.PI / 2;
+	const zNear = 1;
+	const zFar = 2000;
+
+	const displayWidth = canvas.clientWidth || canvas.width || 1;
+	const displayHeight = canvas.clientHeight || canvas.height || 1;
+	canvas.width = displayWidth;
+	canvas.height = displayHeight;
+	const aspect = canvas.width / canvas.height;
+	const projectionMatrix = perspective(fieldOfViewRadians, aspect, zNear, zFar);
 
 	const cameraPosY = 0;
 	let cameraPosX = 0;
@@ -237,41 +246,28 @@ async function main() {
 		cameraPosZ += (forwardZ * fwdBack + rightZ * strafe) * moveStep;
 	});
 
-	function drawScene() {
-		const displayWidth = canvas.clientWidth;
-		const displayHeight = canvas.clientHeight;
+		function drawScene() {
+			gl.viewport(0, 0, canvas.width, canvas.height);
+			gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+			gl.enable(gl.CULL_FACE);
+			gl.enable(gl.DEPTH_TEST);
+			gl.useProgram(program);
 
-		if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
-			canvas.width = displayWidth;
-			canvas.height = displayHeight;
+			let cameraMatrix = translation(
+				cameraPosX * 10,
+				cameraPosY * 10,
+				cameraPosZ * 10,
+			);
+			cameraMatrix = yRotate(cameraMatrix, cameraAngleRadians);
+
+			const viewMatrix = inverse(cameraMatrix);
+			const viewProjectionMatrix = multiply(projectionMatrix, viewMatrix);
+
+			gl.uniformMatrix4fv(matrixLocation, false, viewProjectionMatrix);
+			gl.uniform1i(textureLocation, 0);
+			gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+			window.requestAnimationFrame(drawScene);
 		}
-
-		gl.viewport(0, 0, canvas.width, canvas.height);
-		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-		gl.enable(gl.CULL_FACE);
-		gl.enable(gl.DEPTH_TEST);
-		gl.useProgram(program);
-
-		const aspect = canvas.width / canvas.height;
-		const zNear = 1;
-		const zFar = 2000;
-		const projectionMatrix = perspective(fieldOfViewRadians, aspect, zNear, zFar);
-
-		let cameraMatrix = translation(
-			cameraPosX * 10,
-			cameraPosY * 10,
-			cameraPosZ * 10,
-		);
-		cameraMatrix = yRotate(cameraMatrix, cameraAngleRadians);
-
-		const viewMatrix = inverse(cameraMatrix);
-		const viewProjectionMatrix = multiply(projectionMatrix, viewMatrix);
-
-		gl.uniformMatrix4fv(matrixLocation, false, viewProjectionMatrix);
-		gl.uniform1i(textureLocation, 0);
-		gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
-		window.requestAnimationFrame(drawScene);
-	}
 
 	drawScene();
 }
