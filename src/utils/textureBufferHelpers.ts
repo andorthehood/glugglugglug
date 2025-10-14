@@ -4,6 +4,18 @@ export const TEX_COORD_COMPONENTS_PER_VERTEX = 2;
 export const UV_COMPONENTS_PER_QUAD = 4;
 export const UV_RECT_COMPONENTS_PER_VERTEX = 4;
 
+/**
+ * Writes a single quad's UV rectangle in the compact per-quad buffer.
+ * A quad only needs one `u, v, width, height` tuple on the CPU side, so we
+ * store it once and expand later when preparing per-vertex attributes.
+ *
+ * @param target Buffer that stores UV rectangles once per quad.
+ * @param quadIndex Index of the quad whose data should be written.
+ * @param uMin Left-most (minimum U) coordinate of the texture region.
+ * @param vMin Top-most (minimum V) coordinate of the texture region.
+ * @param width Width of the texture region in UV space.
+ * @param height Height of the texture region in UV space.
+ */
 export function setQuadUVRect(
 	target: Float32Array,
 	quadIndex: number,
@@ -19,6 +31,16 @@ export function setQuadUVRect(
 	target[offset + 3] = height;
 }
 
+/**
+ * Expands per-quad UV rectangles into a per-vertex layout for upload.
+ * WebGL vertex attributes are read per vertex, so each quad's single rectangle
+ * is duplicated across its four vertices right before buffer upload to avoid
+ * keeping the CPU-side data inflated all the time.
+ *
+ * @param quadUVRects Compact buffer storing `u, v, width, height` once per quad.
+ * @param quadCount Number of quads encoded in the compact buffer.
+ * @returns A new buffer containing each quad's rectangle duplicated per vertex.
+ */
 export function expandQuadUVRects(
 	quadUVRects: Float32Array,
 	quadCount: number,

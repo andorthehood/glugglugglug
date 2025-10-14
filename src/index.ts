@@ -138,6 +138,42 @@ async function main() {
 
 	uploadQuadUVRectBuffer(gl, quadUVRectBuffer, quadUVRects, quadCount);
 
+	// Configure vertex attributes once; buffers remain static across frames.
+	gl.enableVertexAttribArray(positionLocation);
+	gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+	gl.vertexAttribPointer(
+		positionLocation,
+		3,
+		gl.FLOAT,
+		false,
+		0,
+		0,
+	);
+
+	gl.enableVertexAttribArray(texCoordLocation);
+	gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+	gl.vertexAttribPointer(
+		texCoordLocation,
+		2,
+		gl.FLOAT,
+		false,
+		0,
+		0,
+	);
+
+	gl.enableVertexAttribArray(uvRectLocation);
+	gl.bindBuffer(gl.ARRAY_BUFFER, quadUVRectBuffer);
+	gl.vertexAttribPointer(
+		uvRectLocation,
+		4,
+		gl.FLOAT,
+		false,
+		0,
+		0,
+	);
+
+	gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
 	const texture = gl.createTexture();
 	gl.activeTexture(gl.TEXTURE0);
 	gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -215,39 +251,6 @@ async function main() {
 		gl.enable(gl.CULL_FACE);
 		gl.enable(gl.DEPTH_TEST);
 		gl.useProgram(program);
-
-		gl.enableVertexAttribArray(positionLocation);
-		gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-		gl.vertexAttribPointer(
-			positionLocation,
-			3,
-			gl.FLOAT,
-			false,
-			0,
-			0,
-		);
-
-		gl.enableVertexAttribArray(texCoordLocation);
-		gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
-		gl.vertexAttribPointer(
-			texCoordLocation,
-			2,
-			gl.FLOAT,
-			false,
-			0,
-			0,
-		);
-
-		gl.enableVertexAttribArray(uvRectLocation);
-		gl.bindBuffer(gl.ARRAY_BUFFER, quadUVRectBuffer);
-		gl.vertexAttribPointer(
-			uvRectLocation,
-			4,
-			gl.FLOAT,
-			false,
-			0,
-			0,
-		);
 
 		const aspect = canvas.width / canvas.height;
 		const zNear = 1;
