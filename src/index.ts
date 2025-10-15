@@ -195,6 +195,7 @@ async function main() {
 	canvas.height = displayHeight;
 	const aspect = canvas.width / canvas.height;
 	const projectionMatrix = perspective(fieldOfViewRadians, aspect, zNear, zFar);
+	const viewProjectionMatrix = new Array<number>(16);
 
 	const cameraPosY = 0;
 	let cameraPosX = 0;
@@ -261,7 +262,7 @@ async function main() {
 			cameraMatrix = yRotate(cameraMatrix, cameraAngleRadians);
 
 			const viewMatrix = inverse(cameraMatrix);
-			const viewProjectionMatrix = multiply(projectionMatrix, viewMatrix);
+			multiply(projectionMatrix, viewMatrix, viewProjectionMatrix);
 
 			gl.uniformMatrix4fv(matrixLocation, false, viewProjectionMatrix);
 			gl.uniform1i(textureLocation, 0);

@@ -7,8 +7,18 @@ import { scaling } from "./scaling";
  * @param sx Scale factor along the x axis.
  * @param sy Scale factor along the y axis.
  * @param sz Scale factor along the z axis.
+ * @param dst Destination matrix to write into. Defaults to mutating the supplied matrix.
  * @returns The transformed matrix.
  */
-export function scale(m: number[], sx: number, sy: number, sz: number) {
-	return multiply(m, scaling(sx, sy, sz));
+const scalingMatrix = new Array<number>(16);
+
+export function scale(
+	m: number[],
+	sx: number,
+	sy: number,
+	sz: number,
+	dst: number[] = m,
+) {
+	scaling(sx, sy, sz, scalingMatrix);
+	return multiply(m, scalingMatrix, dst);
 }

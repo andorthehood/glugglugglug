@@ -57,3 +57,32 @@ exports[`multiply > multiplies two matrices in column-major order 2`] = `
   ],
 ]
 `;
+
+exports[`multiply > writes into a provided destination without mutating inputs 1`] = `
+[
+  [
+    2,
+    0,
+    0,
+    0,
+  ],
+  [
+    0,
+    3,
+    0,
+    0,
+  ],
+  [
+    0,
+    0,
+    4,
+    0,
+  ],
+  [
+    1,
+    2,
+    3,
+    1,
+  ],
+]
+`;

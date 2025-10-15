@@ -28,3 +28,32 @@ exports[`yRotation > creates a rotation matrix around the y axis 1`] = `
   ],
 ]
 `;
+
+exports[`yRotation > writes into an existing matrix 1`] = `
+[
+  [
+    0.707107,
+    0,
+    -0.707107,
+    0,
+  ],
+  [
+    0,
+    1,
+    0,
+    0,
+  ],
+  [
+    0.707107,
+    0,
+    0.707107,
+    0,
+  ],
+  [
+    0,
+    0,
+    0,
+    1,
+  ],
+]
+`;

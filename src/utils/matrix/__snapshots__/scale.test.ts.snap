@@ -28,3 +28,32 @@ exports[`scale > composes transforms via helpers 1`] = `
   ],
 ]
 `;
+
+exports[`scale > supports writing into a separate destination 1`] = `
+[
+  [
+    2,
+    0,
+    0,
+    0,
+  ],
+  [
+    0,
+    3,
+    0,
+    0,
+  ],
+  [
+    0,
+    0,
+    4,
+    0,
+  ],
+  [
+    1,
+    2,
+    3,
+    1,
+  ],
+]
+`;

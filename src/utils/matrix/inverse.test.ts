@@ -13,7 +13,7 @@ describe("inverse", () => {
 			multiply(yRotation(Math.PI / 6), scaling(2, 0.5, 3)),
 		);
 		const inv = inverse(matrix);
-		const identity = multiply(matrix, inv);
+		const identity = multiply(matrix, inv, new Array<number>(16));
 
 		expect(formatMatrix(matrix)).toMatchSnapshot();
 		expect(formatMatrix(inv)).toMatchSnapshot();

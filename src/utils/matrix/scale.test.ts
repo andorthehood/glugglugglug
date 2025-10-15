@@ -19,6 +19,17 @@ describe("scale", () => {
 			2,
 		);
 
+		expect(composed).toBe(base);
 		expect(formatMatrix(composed)).toMatchSnapshot();
+	});
+
+	it("supports writing into a separate destination", () => {
+		const base = translation(1, 2, 3);
+		const dst = new Array<number>(16);
+		const result = scale(base, 2, 3, 4, dst);
+
+		expect(result).toBe(dst);
+		expect(formatMatrix(result)).toMatchSnapshot();
+		expect(formatMatrix(base)).toEqual(formatMatrix(translation(1, 2, 3)));
 	});
 });

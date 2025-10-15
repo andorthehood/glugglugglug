@@ -8,4 +8,13 @@ describe("yRotation", () => {
 
 		expect(formatMatrix(yRotation(angle))).toMatchSnapshot();
 	});
+
+	it("writes into an existing matrix", () => {
+		const angle = Math.PI / 4;
+		const dst = new Array<number>(16);
+		const result = yRotation(angle, dst);
+
+		expect(result).toBe(dst);
+		expect(formatMatrix(dst)).toMatchSnapshot();
+	});
 });

@@ -11,4 +11,17 @@ describe("translation", () => {
 			[1, 2, 3, 1],
 		]);
 	});
+
+	it("writes into an existing matrix", () => {
+		const dst = new Array<number>(16);
+		const result = translation(1, 2, 3, dst);
+
+		expect(result).toBe(dst);
+		expect(formatMatrix(dst)).toEqual([
+			[1, 0, 0, 0],
+			[0, 1, 0, 0],
+			[0, 0, 1, 0],
+			[1, 2, 3, 1],
+		]);
+	});
 });
