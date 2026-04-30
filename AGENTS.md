@@ -11,7 +11,7 @@
 
 ## Coding Style
 - TypeScript, strict mode. ESLint + `@typescript-eslint` with `import/order`.
-- Prettier: tabs, single quotes, semicolons, width 120, trailing commas.
+- Use ESLint as the fixer (`npx eslint --fix <files>`); it owns formatting rules such as tabs, single quotes, semicolons, width 120, and trailing commas.
 - Prefer alias imports `@8f4e/<pkg>` for workspace modules.
 
 ## Testing
