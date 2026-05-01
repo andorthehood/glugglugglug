@@ -94,11 +94,11 @@ export class Renderer {
 			throw new Error('Failed to create sprite position buffer.');
 		}
 
-		// Initialize post-processing system (after buffer validation)
-		this.postProcessManager = new PostProcessManager(this.gl, 256);
+		// Initialize post-processing system
+		this.postProcessManager = new PostProcessManager(this.gl);
 
-		// Initialize background effect system (after buffer validation)
-		this.backgroundEffectManager = new BackgroundEffectManager(this.gl, 256);
+		// Initialize background effect system
+		this.backgroundEffectManager = new BackgroundEffectManager(this.gl);
 
 		this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height); // defines rendering area
 		this.gl.clearColor(0, 0, 0, 1.0); // set clear color to black (RGBA)
@@ -512,20 +512,6 @@ export class Renderer {
 	}
 
 	/**
-	 * Update uniform values in the post-process buffer
-	 */
-	updatePostProcessUniforms(uniforms: Record<string, number | number[]>): void {
-		this.postProcessManager.updateUniforms(uniforms);
-	}
-
-	/**
-	 * Get direct access to the post-process uniform buffer
-	 */
-	getPostProcessBuffer(): Float32Array {
-		return this.postProcessManager.getBuffer();
-	}
-
-	/**
 	 * Set the active background effect, replacing any previous one
 	 */
 	setBackgroundEffect(effect: BackgroundEffect): void {
@@ -539,17 +525,4 @@ export class Renderer {
 		this.backgroundEffectManager.clearEffect();
 	}
 
-	/**
-	 * Update uniform values in the background effect buffer
-	 */
-	updateBackgroundUniforms(uniforms: Record<string, number | number[]>): void {
-		this.backgroundEffectManager.updateUniforms(uniforms);
-	}
-
-	/**
-	 * Get direct access to the background effect uniform buffer
-	 */
-	getBackgroundBuffer(): Float32Array {
-		return this.backgroundEffectManager.getBuffer();
-	}
 }

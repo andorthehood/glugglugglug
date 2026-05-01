@@ -1,7 +1,6 @@
 import { BackgroundEffectManager } from '../../src/background/BackgroundEffectManager';
 import { FULLSCREEN_QUAD_VERTEX_SHADER } from '../../src/shaders/fullscreenQuadVertexShader';
 import type { BackgroundEffect } from '../../src/types/background';
-import { runBufferValidationTests } from '../utils/sharedBufferValidation';
 
 // Mock WebGL objects
 const mockShader = {} as WebGLShader;
@@ -56,147 +55,13 @@ describe('BackgroundEffectManager', () => {
 
 	beforeEach(() => {
 		gl = createMockGL();
-		manager = new BackgroundEffectManager(gl, 256);
+		manager = new BackgroundEffectManager(gl);
 		// Clear mock call counts
 		jest.clearAllMocks();
 	});
 
-	describe('buffer validation', () => {
-		// Run shared validation tests
-		runBufferValidationTests<BackgroundEffect>(
-			() => manager,
-			uniforms => ({
-				vertexShader: 'void main() {}',
-				fragmentShader: 'void main() {}',
-				uniforms,
-			}),
-		);
-
-		it('should accept effect when size is omitted (defaults to 1)', () => {
-			const correctBuffer = manager.getBuffer();
-			const effect: BackgroundEffect = {
-				vertexShader: 'void main() {}',
-				fragmentShader: 'void main() {}',
-				uniforms: {
-					testUniform: {
-						buffer: correctBuffer,
-						offset: 0,
-						// size omitted, should default to 1
-					},
-				},
-			};
-
-			expect(() => manager.setEffect(effect)).not.toThrow();
-		});
-
-		it('should throw error when offset with default size exceeds buffer length', () => {
-			const correctBuffer = manager.getBuffer();
-			const effect: BackgroundEffect = {
-				vertexShader: 'void main() {}',
-				fragmentShader: 'void main() {}',
-				uniforms: {
-					testUniform: {
-						buffer: correctBuffer,
-						offset: 256, // offset + default size (1) = 257 > 256
-						// size omitted
-					},
-				},
-			};
-
-			expect(() => manager.setEffect(effect)).toThrow(
-				'Uniform "testUniform" with offset 256 and size 1 exceeds the shared buffer length (256).',
-			);
-		});
-
-		it('should not create GPU program when buffer validation fails', () => {
-			const wrongBuffer = new Float32Array(256);
-			const effect: BackgroundEffect = {
-				vertexShader: 'void main() {}',
-				fragmentShader: 'void main() {}',
-				uniforms: {
-					testUniform: {
-						buffer: wrongBuffer,
-						offset: 0,
-						size: 1,
-					},
-				},
-			};
-
-			try {
-				manager.setEffect(effect);
-			} catch (error) {
-				// Error is expected
-			}
-
-			// Shader/program creation should NOT have been called
-			expect(gl.createShader).not.toHaveBeenCalled();
-			expect(gl.createProgram).not.toHaveBeenCalled();
-		});
-
-		it('should allow setting valid effect after buffer validation failure', () => {
-			const wrongBuffer = new Float32Array(256);
-			const invalidEffect: BackgroundEffect = {
-				vertexShader: 'void main() {}',
-				fragmentShader: 'void main() {}',
-				uniforms: {
-					testUniform: {
-						buffer: wrongBuffer,
-						offset: 0,
-						size: 1,
-					},
-				},
-			};
-
-			// First, try to set invalid effect
-			try {
-				manager.setEffect(invalidEffect);
-			} catch (error) {
-				// Expected
-			}
-
-			// Clear mock call counts
-			jest.clearAllMocks();
-
-			// Now set a valid effect
-			const correctBuffer = manager.getBuffer();
-			const validEffect: BackgroundEffect = {
-				vertexShader: 'void main() {}',
-				fragmentShader: 'void main() {}',
-				uniforms: {
-					testUniform: {
-						buffer: correctBuffer, // Correct buffer
-						offset: 0,
-						size: 1,
-					},
-				},
-			};
-
-			// Should not throw
-			expect(() => manager.setEffect(validEffect)).not.toThrow();
-
-			// Should have created shaders and program
-			expect(gl.createShader).toHaveBeenCalledTimes(2);
-			expect(gl.createProgram).toHaveBeenCalledTimes(1);
-		});
-
-		it('should accept effect with correct buffer reference', () => {
-			const correctBuffer = manager.getBuffer();
-			const effect: BackgroundEffect = {
-				vertexShader: 'void main() {}',
-				fragmentShader: 'void main() {}',
-				uniforms: {
-					testUniform: {
-						buffer: correctBuffer,
-						offset: 0,
-						size: 1,
-					},
-				},
-			};
-
-			expect(() => manager.setEffect(effect)).not.toThrow();
-		});
-
-		it('should accept effect without uniforms', () => {
+	describe('effect management', () => {
+		it('should accept an effect', () => {
 			const effect: BackgroundEffect = {
 				vertexShader: 'void main() {}',
 				fragmentShader: 'void main() {}',

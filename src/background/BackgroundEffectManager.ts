@@ -1,30 +1,25 @@
 import createProgram from '../utils/createProgram';
 import createShader from '../utils/createShader';
-import { validateUniformMappings } from '../utils/effectValidation';
 import { FULLSCREEN_QUAD_VERTEX_SHADER } from '../shaders/fullscreenQuadVertexShader';
 
 import type { BackgroundEffect } from '../types/background';
-import type { EffectUniforms } from '../types/postProcess';
 
 /**
- * Manages a single background effect with buffer-based uniforms.
+ * Manages a single background effect.
  * Renders a full-screen quad before sprites; does nothing when no effect is set.
  */
 export class BackgroundEffectManager {
 	private gl: WebGL2RenderingContext;
 	private effect: BackgroundEffect | null = null;
 	private program: WebGLProgram | null = null;
-	private uniformLocations: Map<string, WebGLUniformLocation> = new Map();
-	private sharedBuffer: Float32Array;
 	private positionBuffer: WebGLBuffer | null;
 
 	// Standard uniform locations for the active effect
 	private timeLocation: WebGLUniformLocation | null = null;
 	private resolutionLocation: WebGLUniformLocation | null = null;
 
-	constructor(gl: WebGL2RenderingContext, bufferSize: number = 256) {
+	constructor(gl: WebGL2RenderingContext) {
 		this.gl = gl;
-		this.sharedBuffer = new Float32Array(bufferSize);
 
 		// Create position buffer for full-screen quad
 		this.positionBuffer = this.gl.createBuffer();
@@ -51,9 +46,6 @@ export class BackgroundEffectManager {
 	setEffect(effect: BackgroundEffect): void {
 		this.clearEffect();
 
-		// Validate uniform buffer mappings BEFORE shader compilation to avoid GPU leaks
-		validateUniformMappings(effect.uniforms, this.sharedBuffer);
-
 		// Compile shaders
 		let vertexShader: WebGLShader | null = null;
 		let fragmentShader: WebGLShader | null = null;
@@ -77,38 +69,7 @@ export class BackgroundEffectManager {
 		this.timeLocation = this.gl.getUniformLocation(this.program, 'u_time');
 		this.resolutionLocation = this.gl.getUniformLocation(this.program, 'u_resolution');
 
-		// Get custom uniform locations from buffer mapping
-		this.uniformLocations.clear();
-		if (effect.uniforms) {
-			for (const uniformName of Object.keys(effect.uniforms)) {
-				const location = this.gl.getUniformLocation(this.program, uniformName);
-				if (location) {
-					this.uniformLocations.set(uniformName, location);
-				}
-			}
-		}
-
 		this.effect = effect;
-	}
-
-	/**
-	 * Update uniform values in the shared buffer
-	 */
-	updateUniforms(uniforms: EffectUniforms): void {
-		if (!this.effect?.uniforms) return;
-
-		for (const [uniformName, value] of Object.entries(uniforms)) {
-			const mapping = this.effect.uniforms[uniformName];
-			if (!mapping) continue;
-
-			if (Array.isArray(value)) {
-				for (let i = 0; i < value.length && i < (mapping.size ?? 1); i++) {
-					this.sharedBuffer[mapping.offset + i] = value[i];
-				}
-			} else {
-				this.sharedBuffer[mapping.offset] = value;
-			}
-		}
 	}
 
 	/**
@@ -137,48 +98,6 @@ export class BackgroundEffectManager {
 		if (this.timeLocation) this.gl.uniform1f(this.timeLocation, elapsedTime);
 		if (this.resolutionLocation) this.gl.uniform2f(this.resolutionLocation, canvasWidth, canvasHeight);
 
-		// Set custom uniforms from buffer
-		if (this.effect.uniforms) {
-			for (const [uniformName, mapping] of Object.entries(this.effect.uniforms)) {
-				const location = this.uniformLocations.get(uniformName);
-				if (location) {
-					const size = mapping.size || 1;
-					const base = mapping.offset;
-
-					switch (size) {
-						case 1:
-							this.gl.uniform1f(location, this.sharedBuffer[base]);
-							break;
-						case 2:
-							this.gl.uniform2f(location, this.sharedBuffer[base], this.sharedBuffer[base + 1]);
-							break;
-						case 3:
-							this.gl.uniform3f(
-								location,
-								this.sharedBuffer[base],
-								this.sharedBuffer[base + 1],
-								this.sharedBuffer[base + 2],
-							);
-							break;
-						case 4:
-							this.gl.uniform4f(
-								location,
-								this.sharedBuffer[base],
-								this.sharedBuffer[base + 1],
-								this.sharedBuffer[base + 2],
-								this.sharedBuffer[base + 3],
-							);
-							break;
-						default:
-							console.warn(
-								`BackgroundEffectManager: Unsupported uniform size '${size}' for '${uniformName}'. Expected 1–4.`,
-							);
-							break;
-					}
-				}
-			}
-		}
-
 		// Configure vertex attributes
 		const a_position = this.gl.getAttribLocation(this.program, 'a_position');
 		if (a_position !== -1) {
@@ -206,17 +125,9 @@ export class BackgroundEffectManager {
 			this.program = null;
 		}
 
-		this.uniformLocations.clear();
 		this.timeLocation = null;
 		this.resolutionLocation = null;
 		this.effect = null;
-	}
-
-	/**
-	 * Get direct access to the shared buffer for advanced use cases
-	 */
-	getBuffer(): Float32Array {
-		return this.sharedBuffer;
 	}
 
 	/**

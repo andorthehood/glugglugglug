@@ -1,20 +1,16 @@
 import createProgram from '../utils/createProgram';
 import createShader from '../utils/createShader';
-import { validateUniformMappings } from '../utils/effectValidation';
 import { FULLSCREEN_QUAD_VERTEX_SHADER } from '../shaders/fullscreenQuadVertexShader';
 
-import type { PostProcessEffect, EffectUniforms } from '../types/postProcess';
+import type { PostProcessEffect } from '../types/postProcess';
 
 /**
- * Manages a single post-processing effect with buffer-based uniforms
+ * Manages a single post-processing effect.
  */
 export class PostProcessManager {
 	private gl: WebGL2RenderingContext;
 	private effect: PostProcessEffect | null = null;
 	private program: WebGLProgram | null = null;
-	private uniformLocations: Map<string, WebGLUniformLocation> = new Map();
-	private sharedBuffer: Float32Array;
-	private bufferSize: number;
 	private positionBuffer: WebGLBuffer;
 
 	// Standard uniform locations for the active effect
@@ -26,10 +22,8 @@ export class PostProcessManager {
 	private fallbackProgram: WebGLProgram | null = null;
 	private fallbackTextureLocation: WebGLUniformLocation | null = null;
 
-	constructor(gl: WebGL2RenderingContext, bufferSize: number = 256) {
+	constructor(gl: WebGL2RenderingContext) {
 		this.gl = gl;
-		this.bufferSize = bufferSize;
-		this.sharedBuffer = new Float32Array(bufferSize);
 
 		// Create position buffer for full-screen quad
 		this.positionBuffer = this.gl.createBuffer()!;
@@ -53,9 +47,6 @@ export class PostProcessManager {
 	setEffect(effect: PostProcessEffect): void {
 		// Clear previous effect if any
 		this.clearEffect();
-
-		// Validate uniform buffer mappings BEFORE shader compilation to avoid GPU leaks
-		validateUniformMappings(effect.uniforms, this.sharedBuffer);
 
 		// Compile shaders
 		let vertexShader: WebGLShader | null = null;
@@ -81,38 +72,7 @@ export class PostProcessManager {
 		this.resolutionLocation = this.gl.getUniformLocation(this.program, 'u_resolution');
 		this.textureLocation = this.gl.getUniformLocation(this.program, 'u_renderTexture');
 
-		// Get custom uniform locations from buffer mapping
-		this.uniformLocations.clear();
-		if (effect.uniforms) {
-			for (const uniformName of Object.keys(effect.uniforms)) {
-				const location = this.gl.getUniformLocation(this.program, uniformName);
-				if (location) {
-					this.uniformLocations.set(uniformName, location);
-				}
-			}
-		}
-
 		this.effect = effect;
-	}
-
-	/**
-	 * Update uniform values in the shared buffer
-	 */
-	updateUniforms(uniforms: EffectUniforms): void {
-		if (!this.effect?.uniforms) return;
-
-		for (const [uniformName, value] of Object.entries(uniforms)) {
-			const mapping = this.effect.uniforms[uniformName];
-			if (!mapping) continue;
-
-			if (Array.isArray(value)) {
-				for (let i = 0; i < value.length && i < (mapping.size || 1); i++) {
-					this.sharedBuffer[mapping.offset + i] = value[i];
-				}
-			} else {
-				this.sharedBuffer[mapping.offset] = value;
-			}
-		}
 	}
 
 	/**
@@ -138,32 +98,6 @@ export class PostProcessManager {
 		if (this.timeLocation) this.gl.uniform1f(this.timeLocation, elapsedTime);
 		if (this.resolutionLocation) this.gl.uniform2f(this.resolutionLocation, canvasWidth, canvasHeight);
 		if (this.textureLocation) this.gl.uniform1i(this.textureLocation, 0);
-
-		// Set custom uniforms from buffer
-		if (this.effect.uniforms) {
-			for (const [uniformName, mapping] of Object.entries(this.effect.uniforms)) {
-				const location = this.uniformLocations.get(uniformName);
-				if (location) {
-					const size = mapping.size || 1;
-					const values = this.sharedBuffer.slice(mapping.offset, mapping.offset + size);
-
-					switch (size) {
-						case 1:
-							this.gl.uniform1f(location, values[0]);
-							break;
-						case 2:
-							this.gl.uniform2f(location, values[0], values[1]);
-							break;
-						case 3:
-							this.gl.uniform3f(location, values[0], values[1], values[2]);
-							break;
-						case 4:
-							this.gl.uniform4f(location, values[0], values[1], values[2], values[3]);
-							break;
-					}
-				}
-			}
-		}
 
 		// Configure vertex attributes
 		const a_position = this.gl.getAttribLocation(this.program, 'a_position');
@@ -258,18 +192,10 @@ void main() {
 			this.program = null;
 		}
 
-		this.uniformLocations.clear();
 		this.timeLocation = null;
 		this.resolutionLocation = null;
 		this.textureLocation = null;
 		this.effect = null;
-	}
-
-	/**
-	 * Get direct access to the shared buffer for advanced use cases
-	 */
-	getBuffer(): Float32Array {
-		return this.sharedBuffer;
 	}
 
 	/**
@@ -279,7 +205,6 @@ void main() {
 		if (this.program) {
 			this.gl.deleteProgram(this.program);
 		}
-		this.uniformLocations.clear();
 
 		if (this.positionBuffer) {
 			this.gl.deleteBuffer(this.positionBuffer);

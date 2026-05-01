@@ -132,22 +132,6 @@ export class Engine {
 	}
 
 	/**
-	 * Draw rectangle outline using 4 lines
-	 * @param x - Top left X coordinate
-	 * @param y - Top left Y coordinate
-	 * @param width - Rectangle width
-	 * @param height - Rectangle height
-	 * @param sprite - Sprite to use for line texture
-	 * @param thickness - Line thickness in pixels
-	 */
-	drawRectangle(x: number, y: number, width: number, height: number, sprite: string | number, thickness = 1): void {
-		this.drawLine(x, y, x + width, y, sprite, thickness);
-		this.drawLine(x + width, y, x + width, y + height, sprite, thickness);
-		this.drawLine(x + width, y + height, x, y + height, sprite, thickness);
-		this.drawLine(x, y + height, x, y, sprite, thickness);
-	}
-
-	/**
 	 * Load sprite sheet texture and store dimensions for UV coordinate calculation
 	 * @param image - Image containing all sprites
 	 */
@@ -307,20 +291,6 @@ export class Engine {
 	}
 
 	/**
-	 * Update uniform values in the post-process buffer
-	 */
-	updatePostProcessUniforms(uniforms: Record<string, number | number[]>): void {
-		this.renderer.updatePostProcessUniforms(uniforms);
-	}
-
-	/**
-	 * Get direct access to the post-process uniform buffer
-	 */
-	getPostProcessBuffer(): Float32Array {
-		return this.renderer.getPostProcessBuffer();
-	}
-
-	/**
 	 * Set the active background effect, replacing any previous one
 	 */
 	setBackgroundEffect(effect: BackgroundEffect): void {
@@ -332,20 +302,6 @@ export class Engine {
 	 */
 	clearBackgroundEffect(): void {
 		this.renderer.clearBackgroundEffect();
-	}
-
-	/**
-	 * Update uniform values in the background effect buffer
-	 */
-	updateBackgroundUniforms(uniforms: Record<string, number | number[]>): void {
-		this.renderer.updateBackgroundUniforms(uniforms);
-	}
-
-	/**
-	 * Get direct access to the background effect uniform buffer
-	 */
-	getBackgroundBuffer(): Float32Array {
-		return this.renderer.getBackgroundBuffer();
 	}
 
 	// Caching methods (only available when caching is enabled)
