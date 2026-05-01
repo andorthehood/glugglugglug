@@ -82,35 +82,38 @@ export class BackgroundEffectManager {
 			return false;
 		}
 
+		const gl = this.gl;
+		const program = this.program;
+
 		// Save current blend state and disable blending for fullscreen background pass
-		const blendEnabled = this.gl.isEnabled(this.gl.BLEND);
+		const blendEnabled = gl.isEnabled(gl.BLEND);
 		if (blendEnabled) {
-			this.gl.disable(this.gl.BLEND);
+			gl.disable(gl.BLEND);
 		}
 
 		// Bind full-screen quad
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
 
 		// Use effect shader
-		this.gl.useProgram(this.program);
+		gl.useProgram(program);
 
 		// Set standard uniforms
-		if (this.timeLocation) this.gl.uniform1f(this.timeLocation, elapsedTime);
-		if (this.resolutionLocation) this.gl.uniform2f(this.resolutionLocation, canvasWidth, canvasHeight);
+		if (this.timeLocation) gl.uniform1f(this.timeLocation, elapsedTime);
+		if (this.resolutionLocation) gl.uniform2f(this.resolutionLocation, canvasWidth, canvasHeight);
 
 		// Configure vertex attributes
-		const a_position = this.gl.getAttribLocation(this.program, 'a_position');
+		const a_position = gl.getAttribLocation(program, 'a_position');
 		if (a_position !== -1) {
-			this.gl.vertexAttribPointer(a_position, 2, this.gl.FLOAT, false, 0, 0);
-			this.gl.enableVertexAttribArray(a_position);
+			gl.vertexAttribPointer(a_position, 2, gl.FLOAT, false, 0, 0);
+			gl.enableVertexAttribArray(a_position);
 		}
 
 		// Render full-screen quad
-		this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
+		gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
 		// Restore blend state
 		if (blendEnabled) {
-			this.gl.enable(this.gl.BLEND);
+			gl.enable(gl.BLEND);
 		}
 
 		return true;

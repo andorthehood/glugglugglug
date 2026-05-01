@@ -82,6 +82,8 @@ export class CachedRenderer extends Renderer {
 	 * Returns true if a new cache was created (callback executed), false if reused.
 	 */
 	cacheGroup(cacheId: string, width: number, height: number, draw: () => void): boolean {
+		const gl = this.gl;
+
 		if (this.currentCacheId !== null) {
 			throw new Error('Cannot start cache group: already in a cache group');
 		}
@@ -125,21 +127,21 @@ export class CachedRenderer extends Renderer {
 		this.currentCacheId = cacheId;
 
 		// Switch to rendering to cache framebuffer
-		this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, cacheFramebuffer);
-		this.gl.viewport(0, 0, width, height);
+		gl.bindFramebuffer(gl.FRAMEBUFFER, cacheFramebuffer);
+		gl.viewport(0, 0, width, height);
 
 		// Update resolution uniform to match cache target
 		this.setUniform('u_resolution', width, height);
 
 		// Make sure sprite sheet is bound for rendering to cache
 		if (this.spriteSheet) {
-			this.gl.activeTexture(this.gl.TEXTURE0);
-			this.gl.bindTexture(this.gl.TEXTURE_2D, this.spriteSheet);
+			gl.activeTexture(gl.TEXTURE0);
+			gl.bindTexture(gl.TEXTURE_2D, this.spriteSheet);
 		}
 
 		// Clear to transparent so cached areas don't draw opaque rects
-		this.gl.clearColor(0, 0, 0, 0);
-		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+		gl.clearColor(0, 0, 0, 0);
+		gl.clear(gl.COLOR_BUFFER_BIT);
 
 		// Evict old cache entries if necessary
 		this.evictOldCacheEntries();
@@ -155,19 +157,19 @@ export class CachedRenderer extends Renderer {
 			}
 
 			// Switch back to default framebuffer (canvas)
-			this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
-			this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
+			gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+			gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
 			// Restore resolution uniform for canvas rendering
-			this.setUniform('u_resolution', this.gl.canvas.width, this.gl.canvas.height);
+			this.setUniform('u_resolution', gl.canvas.width, gl.canvas.height);
 
 			// Restore original clear color
-			this.gl.clearColor(0, 0, 0, 1.0);
+			gl.clearColor(0, 0, 0, 1.0);
 
 			// Rebind sprite sheet for main rendering
 			if (this.spriteSheet) {
-				this.gl.activeTexture(this.gl.TEXTURE0);
-				this.gl.bindTexture(this.gl.TEXTURE_2D, this.spriteSheet);
+				gl.activeTexture(gl.TEXTURE0);
+				gl.bindTexture(gl.TEXTURE_2D, this.spriteSheet);
 			}
 
 			// Restore original CPU-side buffers and counters
@@ -188,25 +190,30 @@ export class CachedRenderer extends Renderer {
 	 * @param cacheId - ID of the cache to clear
 	 */
 	clearCache(cacheId: string): void {
+		const gl = this.gl;
+		const cacheMap = this.cacheMap;
+		const cacheFramebuffers = this.cacheFramebuffers;
+		const cacheAccessOrder = this.cacheAccessOrder;
+
 		// Clean up WebGL resources
-		const texture = this.cacheMap.get(cacheId);
-		const framebuffer = this.cacheFramebuffers.get(cacheId);
+		const texture = cacheMap.get(cacheId);
+		const framebuffer = cacheFramebuffers.get(cacheId);
 
 		if (texture) {
-			this.gl.deleteTexture(texture);
+			gl.deleteTexture(texture);
 		}
 		if (framebuffer) {
-			this.gl.deleteFramebuffer(framebuffer);
+			gl.deleteFramebuffer(framebuffer);
 		}
 
 		// Remove from all tracking structures
-		this.cacheMap.delete(cacheId);
-		this.cacheFramebuffers.delete(cacheId);
+		cacheMap.delete(cacheId);
+		cacheFramebuffers.delete(cacheId);
 		this.cacheSizes.delete(cacheId);
 
-		const index = this.cacheAccessOrder.indexOf(cacheId);
+		const index = cacheAccessOrder.indexOf(cacheId);
 		if (index > -1) {
-			this.cacheAccessOrder.splice(index, 1);
+			cacheAccessOrder.splice(index, 1);
 		}
 	}
 
@@ -234,36 +241,38 @@ export class CachedRenderer extends Renderer {
 
 		// Append one textured quad
 		const off = this.bufferPointer;
+		const vertexBuffer = this.vertexBuffer;
+		const textureCoordinateBuffer = this.textureCoordinateBuffer;
 		const x1 = x,
 			x2 = x + width,
 			y1 = y,
 			y2 = y + height;
 		// positions
-		this.vertexBuffer[off] = x1;
-		this.vertexBuffer[off + 1] = y1;
-		this.vertexBuffer[off + 2] = x2;
-		this.vertexBuffer[off + 3] = y1;
-		this.vertexBuffer[off + 4] = x1;
-		this.vertexBuffer[off + 5] = y2;
-		this.vertexBuffer[off + 6] = x1;
-		this.vertexBuffer[off + 7] = y2;
-		this.vertexBuffer[off + 8] = x2;
-		this.vertexBuffer[off + 9] = y1;
-		this.vertexBuffer[off + 10] = x2;
-		this.vertexBuffer[off + 11] = y2;
+		vertexBuffer[off] = x1;
+		vertexBuffer[off + 1] = y1;
+		vertexBuffer[off + 2] = x2;
+		vertexBuffer[off + 3] = y1;
+		vertexBuffer[off + 4] = x1;
+		vertexBuffer[off + 5] = y2;
+		vertexBuffer[off + 6] = x1;
+		vertexBuffer[off + 7] = y2;
+		vertexBuffer[off + 8] = x2;
+		vertexBuffer[off + 9] = y1;
+		vertexBuffer[off + 10] = x2;
+		vertexBuffer[off + 11] = y2;
 		// UVs: flip V only to compensate FBO orientation
-		this.textureCoordinateBuffer[off] = 0;
-		this.textureCoordinateBuffer[off + 1] = 1;
-		this.textureCoordinateBuffer[off + 2] = 1;
-		this.textureCoordinateBuffer[off + 3] = 1;
-		this.textureCoordinateBuffer[off + 4] = 0;
-		this.textureCoordinateBuffer[off + 5] = 0;
-		this.textureCoordinateBuffer[off + 6] = 0;
-		this.textureCoordinateBuffer[off + 7] = 0;
-		this.textureCoordinateBuffer[off + 8] = 1;
-		this.textureCoordinateBuffer[off + 9] = 1;
-		this.textureCoordinateBuffer[off + 10] = 1;
-		this.textureCoordinateBuffer[off + 11] = 0;
+		textureCoordinateBuffer[off] = 0;
+		textureCoordinateBuffer[off + 1] = 1;
+		textureCoordinateBuffer[off + 2] = 1;
+		textureCoordinateBuffer[off + 3] = 1;
+		textureCoordinateBuffer[off + 4] = 0;
+		textureCoordinateBuffer[off + 5] = 0;
+		textureCoordinateBuffer[off + 6] = 0;
+		textureCoordinateBuffer[off + 7] = 0;
+		textureCoordinateBuffer[off + 8] = 1;
+		textureCoordinateBuffer[off + 9] = 1;
+		textureCoordinateBuffer[off + 10] = 1;
+		textureCoordinateBuffer[off + 11] = 0;
 
 		this.bufferCounter += 12;
 		this.bufferPointer = this.bufferCounter;
@@ -274,28 +283,29 @@ export class CachedRenderer extends Renderer {
 	 * This avoids the base class behavior of rebinding the sprite sheet.
 	 */
 	private renderVertexBufferWithCurrentTexture(): void {
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.glTextureCoordinateBuffer);
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.textureCoordinateBuffer, this.gl.STATIC_DRAW);
+		const gl = this.gl;
 
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.glPositionBuffer);
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.vertexBuffer, this.gl.STATIC_DRAW);
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.glTextureCoordinateBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, this.textureCoordinateBuffer, gl.STATIC_DRAW);
 
-		this.gl.drawArrays(this.gl.TRIANGLES, 0, Math.min(this.bufferCounter / 2, this.bufferSize / 2));
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.glPositionBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, this.vertexBuffer, gl.STATIC_DRAW);
+
+		gl.drawArrays(gl.TRIANGLES, 0, Math.min(this.bufferCounter / 2, this.bufferSize / 2));
 
 		if (this.isPerformanceMeasurementMode) {
-			this.gl.finish();
+			gl.finish();
 		}
 	}
 
 	/** Render the frame to the off-screen texture, honoring draw order via segments */
 	renderWithPostProcessing(elapsedTime: number): void {
+		const gl = this.gl;
+		const segments = this.segments;
+
 		// Close the current segment if needed
-		if (
-			this.currentCacheId === null &&
-			this.segments.length > 0 &&
-			this.segments[this.segments.length - 1].end === undefined
-		) {
-			this.segments[this.segments.length - 1].end = this.bufferCounter / 2;
+		if (this.currentCacheId === null && segments.length > 0 && segments[segments.length - 1].end === undefined) {
+			segments[segments.length - 1].end = this.bufferCounter / 2;
 		}
 
 		this.startRenderToTexture();
@@ -311,31 +321,31 @@ export class CachedRenderer extends Renderer {
 		}
 
 		// Upload buffers once
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.glTextureCoordinateBuffer);
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.textureCoordinateBuffer, this.gl.STATIC_DRAW);
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.glPositionBuffer);
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.vertexBuffer, this.gl.STATIC_DRAW);
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.glTextureCoordinateBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, this.textureCoordinateBuffer, gl.STATIC_DRAW);
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.glPositionBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, this.vertexBuffer, gl.STATIC_DRAW);
 
-		const textureLocation = this.gl.getUniformLocation(this.program, 'u_texture');
+		const textureLocation = gl.getUniformLocation(this.program, 'u_texture');
 		if (textureLocation) {
 			// @ts-ignore
-			this.gl.uniform1i(textureLocation, 0);
+			gl.uniform1i(textureLocation, 0);
 		}
 
-		if (this.currentCacheId === null && this.segments.length > 0) {
-			for (const seg of this.segments) {
+		if (this.currentCacheId === null && segments.length > 0) {
+			for (const seg of segments) {
 				const start = seg.start;
 				const end = seg.end ?? this.bufferCounter / 2;
 				const count = end - start;
 				if (count <= 0) continue;
-				this.gl.activeTexture(this.gl.TEXTURE0);
+				gl.activeTexture(gl.TEXTURE0);
 				this.setAlpha(seg.alpha);
 				if (seg.texture === 'SPRITESHEET') {
-					if (this.spriteSheet) this.gl.bindTexture(this.gl.TEXTURE_2D, this.spriteSheet);
+					if (this.spriteSheet) gl.bindTexture(gl.TEXTURE_2D, this.spriteSheet);
 				} else {
-					this.gl.bindTexture(this.gl.TEXTURE_2D, seg.texture);
+					gl.bindTexture(gl.TEXTURE_2D, seg.texture);
 				}
-				this.gl.drawArrays(this.gl.TRIANGLES, start, count);
+				gl.drawArrays(gl.TRIANGLES, start, count);
 			}
 			this.setAlpha(1);
 		} else {
@@ -344,12 +354,12 @@ export class CachedRenderer extends Renderer {
 		}
 
 		this.endRenderToTexture();
-		this.gl.flush();
-		this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+		gl.flush();
+		gl.bindTexture(gl.TEXTURE_2D, null);
 		this.renderPostProcess(elapsedTime);
 
 		// Reset segments for next frame, keep counters for stats
-		this.segments.length = 0;
+		segments.length = 0;
 		this.currentSegmentTexture = 'SPRITESHEET';
 		this.currentSegmentAlpha = 1;
 	}
@@ -421,12 +431,14 @@ export class CachedRenderer extends Renderer {
 	 * Clear all cache entries
 	 */
 	clearAllCache(): void {
+		const gl = this.gl;
+
 		// Clean up all WebGL resources
 		for (const texture of this.cacheMap.values()) {
-			this.gl.deleteTexture(texture);
+			gl.deleteTexture(texture);
 		}
 		for (const framebuffer of this.cacheFramebuffers.values()) {
-			this.gl.deleteFramebuffer(framebuffer);
+			gl.deleteFramebuffer(framebuffer);
 		}
 
 		// Clear all tracking structures
@@ -440,27 +452,28 @@ export class CachedRenderer extends Renderer {
 	 * Create a texture for caching
 	 */
 	private createCacheTexture(width: number, height: number): WebGLTexture {
-		const texture = this.gl.createTexture();
+		const gl = this.gl;
+		const texture = gl.createTexture();
 		if (!texture) {
 			throw new Error('Failed to create cache texture');
 		}
 
-		this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
-		this.gl.texImage2D(
-			this.gl.TEXTURE_2D,
+		gl.bindTexture(gl.TEXTURE_2D, texture);
+		gl.texImage2D(
+			gl.TEXTURE_2D,
 			0,
-			this.gl.RGBA8,
+			gl.RGBA8,
 			width,
 			height,
 			0,
-			this.gl.RGBA,
-			this.gl.UNSIGNED_BYTE,
+			gl.RGBA,
+			gl.UNSIGNED_BYTE,
 			null
 		);
-		this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
-		this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-		this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
-		this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
 		return texture;
 	}
@@ -469,17 +482,18 @@ export class CachedRenderer extends Renderer {
 	 * Create a framebuffer for caching
 	 */
 	private createCacheFramebuffer(texture: WebGLTexture): WebGLFramebuffer {
-		const framebuffer = this.gl.createFramebuffer();
+		const gl = this.gl;
+		const framebuffer = gl.createFramebuffer();
 		if (!framebuffer) {
 			throw new Error('Failed to create cache framebuffer');
 		}
 
-		this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, framebuffer);
-		this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, texture, 0);
+		gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+		gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
 
 		// Check framebuffer completeness
-		if (this.gl.checkFramebufferStatus(this.gl.FRAMEBUFFER) !== this.gl.FRAMEBUFFER_COMPLETE) {
-			this.gl.deleteFramebuffer(framebuffer);
+		if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+			gl.deleteFramebuffer(framebuffer);
 			throw new Error('Cache framebuffer not complete');
 		}
 

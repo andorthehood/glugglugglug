@@ -84,30 +84,33 @@ export class PostProcessManager {
 			return;
 		}
 
+		const gl = this.gl;
+		const program = this.program;
+
 		// Bind full-screen quad
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
 
 		// Use effect shader
-		this.gl.useProgram(this.program);
+		gl.useProgram(program);
 
 		// Bind render texture
-		this.gl.activeTexture(this.gl.TEXTURE0);
-		this.gl.bindTexture(this.gl.TEXTURE_2D, renderTexture);
+		gl.activeTexture(gl.TEXTURE0);
+		gl.bindTexture(gl.TEXTURE_2D, renderTexture);
 
 		// Set standard uniforms
-		if (this.timeLocation) this.gl.uniform1f(this.timeLocation, elapsedTime);
-		if (this.resolutionLocation) this.gl.uniform2f(this.resolutionLocation, canvasWidth, canvasHeight);
-		if (this.textureLocation) this.gl.uniform1i(this.textureLocation, 0);
+		if (this.timeLocation) gl.uniform1f(this.timeLocation, elapsedTime);
+		if (this.resolutionLocation) gl.uniform2f(this.resolutionLocation, canvasWidth, canvasHeight);
+		if (this.textureLocation) gl.uniform1i(this.textureLocation, 0);
 
 		// Configure vertex attributes
-		const a_position = this.gl.getAttribLocation(this.program, 'a_position');
+		const a_position = gl.getAttribLocation(program, 'a_position');
 		if (a_position !== -1) {
-			this.gl.vertexAttribPointer(a_position, 2, this.gl.FLOAT, false, 0, 0);
-			this.gl.enableVertexAttribArray(a_position);
+			gl.vertexAttribPointer(a_position, 2, gl.FLOAT, false, 0, 0);
+			gl.enableVertexAttribArray(a_position);
 		}
 
 		// Render full-screen quad
-		this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
+		gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 	}
 
 	/**
@@ -119,30 +122,33 @@ export class PostProcessManager {
 			this.createFallbackShaders();
 		}
 
+		const gl = this.gl;
+		const fallbackProgram = this.fallbackProgram!;
+
 		// Bind full-screen quad
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
 
 		// Use fallback shader
-		this.gl.useProgram(this.fallbackProgram!);
+		gl.useProgram(fallbackProgram);
 
 		// Bind render texture
-		this.gl.activeTexture(this.gl.TEXTURE0);
-		this.gl.bindTexture(this.gl.TEXTURE_2D, renderTexture);
+		gl.activeTexture(gl.TEXTURE0);
+		gl.bindTexture(gl.TEXTURE_2D, renderTexture);
 
 		// Set texture uniform
 		if (this.fallbackTextureLocation) {
-			this.gl.uniform1i(this.fallbackTextureLocation, 0);
+			gl.uniform1i(this.fallbackTextureLocation, 0);
 		}
 
 		// Configure vertex attributes
-		const a_position = this.gl.getAttribLocation(this.fallbackProgram!, 'a_position');
+		const a_position = gl.getAttribLocation(fallbackProgram, 'a_position');
 		if (a_position !== -1) {
-			this.gl.vertexAttribPointer(a_position, 2, this.gl.FLOAT, false, 0, 0);
-			this.gl.enableVertexAttribArray(a_position);
+			gl.vertexAttribPointer(a_position, 2, gl.FLOAT, false, 0, 0);
+			gl.enableVertexAttribArray(a_position);
 		}
 
 		// Render full-screen quad
-		this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
+		gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 	}
 
 	/**

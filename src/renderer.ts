@@ -212,10 +212,12 @@ export class Renderer {
 			this.bufferPointer = 0;
 		}
 
-		fillBufferWithRectangleVertices(this.vertexBuffer, this.bufferPointer, x, y, width, height);
+		const bufferPointer = this.bufferPointer;
+
+		fillBufferWithRectangleVertices(this.vertexBuffer, bufferPointer, x, y, width, height);
 		fillBufferWithSpriteCoordinates(
 			this.textureCoordinateBuffer,
-			this.bufferPointer,
+			bufferPointer,
 			spriteX,
 			spriteY,
 			spriteWidth,
@@ -259,13 +261,15 @@ export class Renderer {
 			this.bufferPointer = 0;
 		}
 
+		const bufferPointer = this.bufferPointer;
+
 		// Generate line geometry using trigonometry (see buffer.ts for math)
-		fillBufferWithLineVertices(this.vertexBuffer, this.bufferPointer, x1, y1, x2, y2, thickness);
+		fillBufferWithLineVertices(this.vertexBuffer, bufferPointer, x1, y1, x2, y2, thickness);
 
 		// Use sprite texture to fill the line shape
 		fillBufferWithSpriteCoordinates(
 			this.textureCoordinateBuffer,
-			this.bufferPointer,
+			bufferPointer,
 			spriteX,
 			spriteY,
 			spriteWidth,
@@ -282,23 +286,25 @@ export class Renderer {
 	 * Upload batched vertex data to GPU and render all sprites in one draw call
 	 */
 	renderVertexBuffer(): void {
+		const gl = this.gl;
+
 		// Bind sprite sheet texture for sprite rendering
 		if (this.spriteSheet) {
-			this.gl.activeTexture(this.gl.TEXTURE0);
-			this.gl.bindTexture(this.gl.TEXTURE_2D, this.spriteSheet);
+			gl.activeTexture(gl.TEXTURE0);
+			gl.bindTexture(gl.TEXTURE_2D, this.spriteSheet);
 		}
 
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.glTextureCoordinateBuffer); // make texture buffer active
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.textureCoordinateBuffer, this.gl.STATIC_DRAW); // copy Float32Array to GPU
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.glTextureCoordinateBuffer); // make texture buffer active
+		gl.bufferData(gl.ARRAY_BUFFER, this.textureCoordinateBuffer, gl.STATIC_DRAW); // copy Float32Array to GPU
 
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.glPositionBuffer); // switch to position buffer
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.vertexBuffer, this.gl.STATIC_DRAW); // copy positions to GPU
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.glPositionBuffer); // switch to position buffer
+		gl.bufferData(gl.ARRAY_BUFFER, this.vertexBuffer, gl.STATIC_DRAW); // copy positions to GPU
 
-		this.gl.drawArrays(this.gl.TRIANGLES, 0, Math.min(this.bufferCounter / 2, this.bufferSize / 2)); // render triangles from vertex 0
+		gl.drawArrays(gl.TRIANGLES, 0, Math.min(this.bufferCounter / 2, this.bufferSize / 2)); // render triangles from vertex 0
 
 		// Force GPU sync for accurate performance measurement
 		if (this.isPerformanceMeasurementMode) {
-			this.gl.finish(); // blocks CPU until GPU rendering completes (slow!)
+			gl.finish(); // blocks CPU until GPU rendering completes (slow!)
 		}
 	}
 
@@ -306,6 +312,8 @@ export class Renderer {
 	 * Render sprites to texture, then apply post-processing to canvas
 	 */
 	renderWithPostProcessing(elapsedTime: number): void {
+		const gl = this.gl;
+
 		// Phase 1: Render sprites to off-screen texture
 		this.startRenderToTexture();
 
@@ -323,10 +331,10 @@ export class Renderer {
 		this.endRenderToTexture();
 
 		// Ensure all rendering to texture is complete
-		this.gl.flush();
+		gl.flush();
 
 		// Explicitly unbind any textures before post-processing
-		this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+		gl.bindTexture(gl.TEXTURE_2D, null);
 
 		// Phase 2: Render textured quad to canvas with post-effects
 		this.renderPostProcess(elapsedTime);
@@ -336,26 +344,31 @@ export class Renderer {
 	 * Restore sprite shader program and vertex attributes after a fullscreen quad render
 	 */
 	protected restoreSpriteState(): void {
-		this.gl.useProgram(this.program);
+		const gl = this.gl;
+		const program = this.program;
+
+		gl.useProgram(program);
 
 		// Cache attribute locations on first call to avoid repeated lookups
 		if (!this.spriteAttribLocations) {
 			this.spriteAttribLocations = {
-				position: this.gl.getAttribLocation(this.program, 'a_position'),
-				texcoord: this.gl.getAttribLocation(this.program, 'a_texcoord'),
+				position: gl.getAttribLocation(program, 'a_position'),
+				texcoord: gl.getAttribLocation(program, 'a_texcoord'),
 			};
 		}
 
-		if (this.spriteAttribLocations.position !== -1) {
-			this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.glPositionBuffer);
-			this.gl.vertexAttribPointer(this.spriteAttribLocations.position, 2, this.gl.FLOAT, false, 0, 0);
-			this.gl.enableVertexAttribArray(this.spriteAttribLocations.position);
+		const attribLocations = this.spriteAttribLocations;
+
+		if (attribLocations.position !== -1) {
+			gl.bindBuffer(gl.ARRAY_BUFFER, this.glPositionBuffer);
+			gl.vertexAttribPointer(attribLocations.position, 2, gl.FLOAT, false, 0, 0);
+			gl.enableVertexAttribArray(attribLocations.position);
 		}
 
-		if (this.spriteAttribLocations.texcoord !== -1) {
-			this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.glTextureCoordinateBuffer);
-			this.gl.vertexAttribPointer(this.spriteAttribLocations.texcoord, 2, this.gl.FLOAT, false, 0, 0);
-			this.gl.enableVertexAttribArray(this.spriteAttribLocations.texcoord);
+		if (attribLocations.texcoord !== -1) {
+			gl.bindBuffer(gl.ARRAY_BUFFER, this.glTextureCoordinateBuffer);
+			gl.vertexAttribPointer(attribLocations.texcoord, 2, gl.FLOAT, false, 0, 0);
+			gl.enableVertexAttribArray(attribLocations.texcoord);
 		}
 	}
 
@@ -365,7 +378,8 @@ export class Renderer {
 	 * @param values - 1-4 numeric values to set
 	 */
 	setUniform(name: string, ...values: number[]): void {
-		const location = this.gl.getUniformLocation(this.program, name);
+		const gl = this.gl;
+		const location = gl.getUniformLocation(this.program, name);
 		if (!location) {
 			throw new Error(`Failed to get uniform location for: ${name}`);
 		}
@@ -373,16 +387,16 @@ export class Renderer {
 		// Call appropriate uniform function based on value count
 		switch (values.length) {
 			case 1:
-				this.gl.uniform1f(location, values[0]); // single float (like time)
+				gl.uniform1f(location, values[0]); // single float (like time)
 				break;
 			case 2:
-				this.gl.uniform2f(location, values[0], values[1]); // vec2 (like resolution)
+				gl.uniform2f(location, values[0], values[1]); // vec2 (like resolution)
 				break;
 			case 3:
-				this.gl.uniform3f(location, values[0], values[1], values[2]); // vec3 (like RGB color)
+				gl.uniform3f(location, values[0], values[1], values[2]); // vec3 (like RGB color)
 				break;
 			case 4:
-				this.gl.uniform4f(location, values[0], values[1], values[2], values[3]); // vec4 (like RGBA color)
+				gl.uniform4f(location, values[0], values[1], values[2], values[3]); // vec4 (like RGBA color)
 				break;
 			default:
 				throw new Error(`Unsupported uniform value count: ${values.length}`);
@@ -414,84 +428,92 @@ export class Renderer {
 	 * Create framebuffer and texture for render-to-texture
 	 */
 	createRenderTexture(width: number, height: number): void {
+		const gl = this.gl;
+
 		this.renderTextureWidth = width;
 		this.renderTextureHeight = height;
 
 		// Create texture to render into
-		this.renderTexture = this.gl.createTexture()!;
-		this.gl.bindTexture(this.gl.TEXTURE_2D, this.renderTexture);
-		this.gl.texImage2D(
-			this.gl.TEXTURE_2D,
+		this.renderTexture = gl.createTexture()!;
+		gl.bindTexture(gl.TEXTURE_2D, this.renderTexture);
+		gl.texImage2D(
+			gl.TEXTURE_2D,
 			0,
-			this.gl.RGBA8,
+			gl.RGBA8,
 			width,
 			height,
 			0,
-			this.gl.RGBA,
-			this.gl.UNSIGNED_BYTE,
+			gl.RGBA,
+			gl.UNSIGNED_BYTE,
 			null
 		);
-		this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
-		this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-		this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
-		this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
 		// Create framebuffer
-		this.renderFramebuffer = this.gl.createFramebuffer()!;
-		this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.renderFramebuffer);
-		this.gl.framebufferTexture2D(
-			this.gl.FRAMEBUFFER,
-			this.gl.COLOR_ATTACHMENT0,
-			this.gl.TEXTURE_2D,
+		this.renderFramebuffer = gl.createFramebuffer()!;
+		gl.bindFramebuffer(gl.FRAMEBUFFER, this.renderFramebuffer);
+		gl.framebufferTexture2D(
+			gl.FRAMEBUFFER,
+			gl.COLOR_ATTACHMENT0,
+			gl.TEXTURE_2D,
 			this.renderTexture,
 			0
 		);
 
 		// Check framebuffer completeness
-		if (this.gl.checkFramebufferStatus(this.gl.FRAMEBUFFER) !== this.gl.FRAMEBUFFER_COMPLETE) {
+		if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
 			throw new Error('Framebuffer not complete');
 		}
 
 		// Unbind framebuffer (render to canvas by default)
-		this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	}
 
 	/**
 	 * Start rendering to the off-screen texture
 	 */
 	startRenderToTexture(): void {
-		this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.renderFramebuffer);
-		this.gl.viewport(0, 0, this.renderTextureWidth, this.renderTextureHeight);
-		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+		const gl = this.gl;
+
+		gl.bindFramebuffer(gl.FRAMEBUFFER, this.renderFramebuffer);
+		gl.viewport(0, 0, this.renderTextureWidth, this.renderTextureHeight);
+		gl.clear(gl.COLOR_BUFFER_BIT);
 	}
 
 	/**
 	 * End rendering to texture and switch back to canvas
 	 */
 	endRenderToTexture(): void {
-		this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
-		this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
+		const gl = this.gl;
+
+		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+		gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 	}
 
 	/**
 	 * Render post-process effects using the new effect system
 	 */
 	renderPostProcess(elapsedTime: number): void {
+		const gl = this.gl;
+
 		// Make sure we're rendering to canvas, not framebuffer
-		this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
 		// Clear canvas for post-processing
-		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+		gl.clear(gl.COLOR_BUFFER_BIT);
 
 		// Disable blending for direct texture rendering
-		this.gl.disable(this.gl.BLEND);
+		gl.disable(gl.BLEND);
 
 		// Use post-process manager to render all effects
-		this.postProcessManager.render(this.renderTexture, elapsedTime, this.gl.canvas.width, this.gl.canvas.height);
+		this.postProcessManager.render(this.renderTexture, elapsedTime, gl.canvas.width, gl.canvas.height);
 
 		// Re-enable blending for next frame (premultiplied-alpha)
-		this.gl.enable(this.gl.BLEND);
-		this.gl.blendFunc(this.gl.ONE, this.gl.ONE_MINUS_SRC_ALPHA);
+		gl.enable(gl.BLEND);
+		gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
 		// Restore sprite state after post-processing
 		this.restoreSpriteState();
