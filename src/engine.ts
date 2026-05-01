@@ -257,15 +257,6 @@ export class Engine {
 	}
 
 	/**
-	 * Helper to set shader uniform values
-	 * @param name - Uniform variable name in shader
-	 * @param values - 1-4 numeric values to set
-	 */
-	setUniform(name: string, ...values: number[]): void {
-		this.renderer.setUniform(name, ...values);
-	}
-
-	/**
 	 * Get/set performance measurement mode
 	 */
 	get isPerformanceMeasurementMode(): boolean {

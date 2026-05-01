@@ -281,9 +281,6 @@ render(callback: (timeToRender: number, fps: number, triangles: number, maxTrian
 
 // Resize canvas
 resize(width: number, height: number): void
-
-// Set shader uniform
-setUniform(name: string, ...values: number[]): void
 ```
 
 #### Post-Processing Effects
