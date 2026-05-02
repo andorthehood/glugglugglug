@@ -157,12 +157,12 @@ export class PostProcessManager {
 	private createFallbackShaders(): void {
 		const fallbackFragmentShader = `#version 300 es
 precision mediump float;
-in vec2 v_screenCoord;
+in vec2 v_textureCoord;
 uniform sampler2D u_renderTexture;
 out vec4 outColor;
 
 void main() {
-	outColor = texture(u_renderTexture, v_screenCoord);
+	outColor = texture(u_renderTexture, v_textureCoord);
 }
 `;
 
