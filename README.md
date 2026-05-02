@@ -122,7 +122,7 @@ The engine renders in two phases each frame:
 
 ## Post-Processing Effects
 
-The engine supports a single post-processing effect. Fragment shaders receive built-in `u_time`, `u_resolution`, and `u_renderTexture` uniforms. If `vertexShader` is omitted, glugglug uses its built-in full-screen quad vertex shader. The built-in vertex shader exposes `v_screenCoord` as normalized screen coordinates with `y = 0.0` at the top, and `v_textureCoord` as render-texture coordinates for sampling `u_renderTexture`.
+The engine supports a single post-processing effect. Fragment shaders receive built-in `u_time`, `u_resolution`, and `u_renderTexture` uniforms. If `vertexShader` is omitted, glugglug uses its built-in full-screen quad vertex shader. The built-in vertex shader exposes `v_screenCoord` and `v_textureCoord` as render-texture coordinates for sampling `u_renderTexture`, plus `v_topLeftScreenCoord` as normalized screen coordinates with `y = 0.0` at the top.
 
 ```typescript
 import { PostProcessEffect } from 'glugglug';
