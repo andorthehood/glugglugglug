@@ -98,6 +98,19 @@ export class Engine {
 	 * @param callback - Function called each frame to draw sprites
 	 */
 	render(callback: (timeToRender: number, fps: number, triangles: number, maxTriangles: number) => void): void {
+		this.renderFrame(callback);
+
+		// Continue render loop
+		window.requestAnimationFrame(() => {
+			this.render(callback);
+		});
+	}
+
+	/**
+	 * Render a single frame synchronously without scheduling another animation frame.
+	 * Useful for export paths that need to read the canvas immediately after drawing.
+	 */
+	renderFrame(callback: (timeToRender: number, fps: number, triangles: number, maxTriangles: number) => void): void {
 		// Calculate performance stats and reset buffers for new frame
 		const { triangles, maxTriangles } = this.renderer.getBufferStats();
 		this.renderer.resetBuffers();
@@ -124,11 +137,6 @@ export class Engine {
 		// Update performance tracking and schedule next frame
 		this.lastRenderFinishTime = performance.now();
 		this.frameCounter++;
-
-		// Continue render loop
-		window.requestAnimationFrame(() => {
-			this.render(callback);
-		});
 	}
 
 	/**
