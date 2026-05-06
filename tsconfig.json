@@ -13,7 +13,6 @@
 		"isolatedModules": true,
 		"strict": false,
 		"strictNullChecks": false,
-		"downlevelIteration": true,
 		"skipLibCheck": true,
 		"forceConsistentCasingInFileNames": true,
 		"outDir": "dist",
