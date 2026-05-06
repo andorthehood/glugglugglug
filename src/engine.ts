@@ -16,8 +16,7 @@ export class Engine {
 	private savedOffsetX: number | null = null;
 	private savedOffsetY: number | null = null;
 
-	// Performance tracking
-	frameCounter: number;
+	// Render timing
 	startTime: number;
 	lastRenderFinishTime: number;
 	lastRenderStartTime: number;
@@ -46,7 +45,6 @@ export class Engine {
 
 		// Initialize performance tracking and transform state
 		this.startTime = Date.now();
-		this.frameCounter = 0;
 		this.offsetX = 0;
 		this.offsetY = 0;
 		this.offsetGroups = [];
@@ -97,7 +95,7 @@ export class Engine {
 	 * Main render loop - calls user callback to populate buffers, then renders everything
 	 * @param callback - Function called each frame to draw sprites
 	 */
-	render(callback: (timeToRender: number, fps: number, triangles: number, maxTriangles: number) => void): void {
+	render(callback: (timeToRender: number, triangles: number, maxTriangles: number) => void): void {
 		this.renderFrame(callback);
 
 		// Continue render loop
@@ -110,13 +108,12 @@ export class Engine {
 	 * Render a single frame synchronously without scheduling another animation frame.
 	 * Useful for export paths that need to read the canvas immediately after drawing.
 	 */
-	renderFrame(callback: (timeToRender: number, fps: number, triangles: number, maxTriangles: number) => void): void {
+	renderFrame(callback: (timeToRender: number, triangles: number, maxTriangles: number) => void): void {
 		// Calculate performance stats and reset buffers for new frame
 		const { triangles, maxTriangles } = this.renderer.getBufferStats();
 		this.renderer.resetBuffers();
 
-		// Calculate FPS and frame timing
-		const fps = Math.floor(this.frameCounter / ((Date.now() - this.startTime) / 1000));
+		// Calculate frame timing
 		const timeToRender = this.lastRenderFinishTime - this.lastRenderStartTime;
 
 		this.lastRenderStartTime = performance.now();
@@ -129,14 +126,13 @@ export class Engine {
 		this.renderer.updateTime(elapsedTime);
 
 		// Let user code draw sprites (fills the buffers)
-		callback(timeToRender, fps, triangles, maxTriangles);
+		callback(timeToRender, triangles, maxTriangles);
 
 		// Render sprites to texture, then apply post-processing effects
 		this.renderer.renderWithPostProcessing(elapsedTime);
 
-		// Update performance tracking and schedule next frame
+		// Update render timing
 		this.lastRenderFinishTime = performance.now();
-		this.frameCounter++;
 	}
 
 	/**
