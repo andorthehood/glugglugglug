@@ -13,3 +13,19 @@ export type EngineOptions = {
 	/** Maximum number of cache items when caching is enabled. Defaults to 50. */
 	maxCacheItems?: number;
 };
+
+export type Rgba8TextureFilter = 'nearest' | 'linear';
+
+export type Rgba8TextureData = Uint8Array | Uint8ClampedArray;
+
+export type Rgba8Texture = {
+	texture: WebGLTexture;
+	width: number;
+	height: number;
+	filter: Rgba8TextureFilter;
+};
+
+export type UploadRgba8TextureOptions = {
+	texture?: Rgba8Texture;
+	filter?: Rgba8TextureFilter;
+};

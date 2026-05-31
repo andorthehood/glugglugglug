@@ -13,6 +13,15 @@ import { BackgroundEffectManager } from './background/BackgroundEffectManager';
 
 import type { PostProcessEffect } from './types/postProcess';
 import type { BackgroundEffect } from './types/background';
+import type {
+	Rgba8Texture,
+	Rgba8TextureData,
+	Rgba8TextureFilter,
+	UploadRgba8TextureOptions,
+} from './types';
+
+type TextureSegmentSource = WebGLTexture | 'SPRITESHEET';
+type TextureDrawSegment = { texture: TextureSegmentSource; alpha: number; start: number; end?: number };
 
 /**
  * Low-level WebGL renderer - handles buffers, shaders, and GPU operations
@@ -48,6 +57,11 @@ export class Renderer {
 
 	// Cached sprite attribute locations
 	private spriteAttribLocations: { position: number; texcoord: number } | null = null;
+
+	// Draw order segmentation: preserves relative order between sprite-sheet draws and custom texture quads
+	protected textureSegments: TextureDrawSegment[] = [];
+	protected currentSegmentTexture: TextureSegmentSource = 'SPRITESHEET';
+	protected currentSegmentAlpha = 1;
 
 	constructor(canvas: HTMLCanvasElement) {
 		// alpha: false = opaque canvas (slight performance gain)
@@ -176,6 +190,68 @@ export class Renderer {
 		this.spriteSheetHeight = image.height;
 	}
 
+	uploadRgba8Texture(
+		data: Rgba8TextureData,
+		width: number,
+		height: number,
+		options: UploadRgba8TextureOptions = {}
+	): Rgba8Texture {
+		if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+			throw new Error('RGBA8 texture dimensions must be positive integers');
+		}
+
+		const requiredByteLength = width * height * 4;
+		if (data.byteLength < requiredByteLength) {
+			throw new Error(`RGBA8 texture data is too small: expected at least ${requiredByteLength} bytes`);
+		}
+
+		const gl = this.gl;
+		const filter = options.filter ?? options.texture?.filter ?? 'nearest';
+		const texture = options.texture?.texture ?? gl.createTexture();
+		if (!texture) {
+			throw new Error('Failed to create RGBA8 texture');
+		}
+
+		const existingTexture = options.texture;
+		const sizeChanged = !existingTexture || existingTexture.width !== width || existingTexture.height !== height;
+
+		gl.bindTexture(gl.TEXTURE_2D, texture);
+		gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+		this.applyTextureFilter(filter);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+		if (sizeChanged) {
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+		} else {
+			gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, data);
+		}
+
+		if (existingTexture) {
+			existingTexture.width = width;
+			existingTexture.height = height;
+			existingTexture.filter = filter;
+			return existingTexture;
+		}
+
+		return { texture, width, height, filter };
+	}
+
+	drawTexture(
+		texture: Rgba8Texture,
+		x: number,
+		y: number,
+		width: number = texture.width,
+		height: number = texture.height,
+		alpha: number = 1
+	): void {
+		this.drawTexturedQuad(texture.texture, x, y, width, height, alpha);
+	}
+
+	deleteTexture(texture: Rgba8Texture): void {
+		this.gl.deleteTexture(texture.texture);
+	}
+
 	setAlpha(alpha: number): void {
 		if (!this.alphaLocation) {
 			return;
@@ -205,6 +281,10 @@ export class Renderer {
 		spriteWidth: number = width,
 		spriteHeight: number = height
 	): void {
+		if (this.shouldRecordTextureSegments()) {
+			this.ensureTextureSegment('SPRITESHEET', 1);
+		}
+
 		// Auto-flush buffer if full (prevents overflow)
 		if (this.bufferCounter + 12 > this.bufferSize) {
 			this.renderVertexBuffer();
@@ -254,6 +334,10 @@ export class Renderer {
 		spriteHeight: number,
 		thickness: number
 	): void {
+		if (this.shouldRecordTextureSegments()) {
+			this.ensureTextureSegment('SPRITESHEET', 1);
+		}
+
 		// Auto-flush buffer if full
 		if (this.bufferCounter + 12 > this.bufferSize) {
 			this.renderVertexBuffer();
@@ -327,7 +411,7 @@ export class Renderer {
 			this.restoreSpriteState();
 		}
 
-		this.renderVertexBuffer();
+		this.renderQueuedTextureSegments();
 		this.endRenderToTexture();
 
 		// Ensure all rendering to texture is complete
@@ -338,6 +422,7 @@ export class Renderer {
 
 		// Phase 2: Render textured quad to canvas with post-effects
 		this.renderPostProcess(elapsedTime);
+		this.resetTextureSegments();
 	}
 
 	/**
@@ -370,6 +455,142 @@ export class Renderer {
 			gl.vertexAttribPointer(attribLocations.texcoord, 2, gl.FLOAT, false, 0, 0);
 			gl.enableVertexAttribArray(attribLocations.texcoord);
 		}
+	}
+
+	protected shouldRecordTextureSegments(): boolean {
+		return true;
+	}
+
+	protected drawTexturedQuad(
+		texture: WebGLTexture,
+		x: number,
+		y: number,
+		width: number,
+		height: number,
+		alpha: number = 1,
+		flipY: boolean = false
+	): void {
+		if (this.shouldRecordTextureSegments()) {
+			this.ensureTextureSegment(texture, alpha);
+		}
+
+		// Auto-flush buffer if full. This follows the existing sprite overflow behavior.
+		if (this.bufferCounter + 12 > this.bufferSize) {
+			this.renderVertexBuffer();
+			this.resetBuffers();
+			if (this.shouldRecordTextureSegments()) {
+				this.ensureTextureSegment(texture, alpha);
+			}
+		}
+
+		const bufferPointer = this.bufferPointer;
+		fillBufferWithRectangleVertices(this.vertexBuffer, bufferPointer, x, y, width, height);
+		this.fillTextureQuadCoordinates(this.textureCoordinateBuffer, bufferPointer, flipY);
+
+		this.bufferCounter += 12;
+		this.bufferPointer = this.bufferCounter;
+	}
+
+	protected renderQueuedTextureSegments(): void {
+		const gl = this.gl;
+		this.closeCurrentTextureSegment();
+
+		if (this.textureSegments.length === 0) {
+			this.renderVertexBuffer();
+			return;
+		}
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.glTextureCoordinateBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, this.textureCoordinateBuffer, gl.STATIC_DRAW);
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.glPositionBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, this.vertexBuffer, gl.STATIC_DRAW);
+
+		const textureLocation = gl.getUniformLocation(this.program, 'u_texture');
+		if (textureLocation) {
+			gl.uniform1i(textureLocation, 0);
+		}
+
+		for (const segment of this.textureSegments) {
+			const start = segment.start;
+			const end = segment.end ?? this.bufferCounter / 2;
+			const count = end - start;
+			if (count <= 0) {
+				continue;
+			}
+
+			gl.activeTexture(gl.TEXTURE0);
+			this.setAlpha(segment.alpha);
+			if (segment.texture === 'SPRITESHEET') {
+				if (this.spriteSheet) {
+					gl.bindTexture(gl.TEXTURE_2D, this.spriteSheet);
+				}
+			} else {
+				gl.bindTexture(gl.TEXTURE_2D, segment.texture);
+			}
+			gl.drawArrays(gl.TRIANGLES, start, count);
+		}
+
+		this.setAlpha(1);
+
+		if (this.isPerformanceMeasurementMode) {
+			gl.finish();
+		}
+	}
+
+	protected resetTextureSegments(): void {
+		this.textureSegments.length = 0;
+		this.currentSegmentTexture = 'SPRITESHEET';
+		this.currentSegmentAlpha = 1;
+	}
+
+	protected ensureTextureSegment(texture: TextureSegmentSource, alpha: number): void {
+		const currentVertexIndex = this.bufferCounter / 2;
+		if (this.textureSegments.length === 0) {
+			this.textureSegments.push({ texture, alpha, start: currentVertexIndex });
+			this.currentSegmentTexture = texture;
+			this.currentSegmentAlpha = alpha;
+			return;
+		}
+
+		if (this.currentSegmentTexture !== texture || this.currentSegmentAlpha !== alpha) {
+			this.closeCurrentTextureSegment();
+			this.textureSegments.push({ texture, alpha, start: currentVertexIndex });
+			this.currentSegmentTexture = texture;
+			this.currentSegmentAlpha = alpha;
+		}
+	}
+
+	protected closeCurrentTextureSegment(): void {
+		const currentSegment = this.textureSegments[this.textureSegments.length - 1];
+		if (currentSegment && currentSegment.end === undefined) {
+			currentSegment.end = this.bufferCounter / 2;
+		}
+	}
+
+	private applyTextureFilter(filter: Rgba8TextureFilter): void {
+		const gl = this.gl;
+		const glFilter = filter === 'linear' ? gl.LINEAR : gl.NEAREST;
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, glFilter);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, glFilter);
+	}
+
+	private fillTextureQuadCoordinates(buffer: Float32Array, offset: number, flipY: boolean): void {
+		const vTop = flipY ? 1 : 0;
+		const vBottom = flipY ? 0 : 1;
+
+		buffer[offset] = 0;
+		buffer[offset + 1] = vTop;
+		buffer[offset + 2] = 1;
+		buffer[offset + 3] = vTop;
+		buffer[offset + 4] = 0;
+		buffer[offset + 5] = vBottom;
+		buffer[offset + 6] = 0;
+		buffer[offset + 7] = vBottom;
+		buffer[offset + 8] = 1;
+		buffer[offset + 9] = vTop;
+		buffer[offset + 10] = 1;
+		buffer[offset + 11] = vBottom;
 	}
 
 	/**
@@ -416,6 +637,7 @@ export class Renderer {
 	resetBuffers(): void {
 		this.bufferPointer = 0; // Reset write position
 		this.bufferCounter = 0; // Reset usage counter
+		this.resetTextureSegments();
 	}
 
 	getBufferStats(): { triangles: number; maxTriangles: number } {

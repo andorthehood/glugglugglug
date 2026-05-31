@@ -1,7 +1,13 @@
 import { Renderer } from './renderer';
 import { CachedRenderer } from './CachedRenderer';
 
-import type { SpriteLookup, EngineOptions } from './types';
+import type {
+	EngineOptions,
+	Rgba8Texture,
+	Rgba8TextureData,
+	SpriteLookup,
+	UploadRgba8TextureOptions,
+} from './types';
 import type { PostProcessEffect } from './types/postProcess';
 import type { BackgroundEffect } from './types/background';
 
@@ -141,6 +147,30 @@ export class Engine {
 	 */
 	loadSpriteSheet(image: HTMLImageElement | HTMLCanvasElement | OffscreenCanvas): void {
 		this.renderer.loadSpriteSheet(image);
+	}
+
+	uploadRgba8Texture(
+		data: Rgba8TextureData,
+		width: number,
+		height: number,
+		options: UploadRgba8TextureOptions = {}
+	): Rgba8Texture {
+		return this.renderer.uploadRgba8Texture(data, width, height, options);
+	}
+
+	drawTexture(
+		texture: Rgba8Texture,
+		x: number,
+		y: number,
+		width: number = texture.width,
+		height: number = texture.height,
+		alpha: number = 1
+	): void {
+		this.renderer.drawTexture(texture, x + this.offsetX, y + this.offsetY, width, height, alpha);
+	}
+
+	deleteTexture(texture: Rgba8Texture): void {
+		this.renderer.deleteTexture(texture);
 	}
 
 	/**
