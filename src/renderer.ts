@@ -1,772 +1,442 @@
-import {
-	fillBufferWithLineVertices,
-	fillBufferWithRectangleVertices,
-	fillBufferWithSpriteCoordinates,
-} from './utils/buffer';
-import createProgram from './utils/createProgram';
-import createShader from './utils/createShader';
-import createTexture from './utils/createTexture';
-import spriteFragmentShader from './shaders/spriteFragmentShader';
-import spriteVertexShader from './shaders/spriteVertexShader';
-import { PostProcessManager } from './postProcess/PostProcessManager';
-import { BackgroundEffectManager } from './background/BackgroundEffectManager';
+import { INSTANCE_BYTE_STRIDE, InstanceBuffer } from './instanceBuffer.ts';
+import { fragmentShaderSource, vertexShaderSource } from './shaders.ts';
+import { normalizeSpriteIdentifier, prepareSpriteAtlas, type ResolvedSprite } from './spriteAtlas.ts';
 
-import type { PostProcessEffect } from './types/postProcess';
-import type { BackgroundEffect } from './types/background';
-import type {
-	Rgba8Texture,
-	Rgba8TextureData,
-	Rgba8TextureFilter,
-	UploadRgba8TextureOptions,
-} from './types';
-
-type TextureSegmentSource = WebGLTexture | 'SPRITESHEET';
-type TextureDrawSegment = { texture: TextureSegmentSource; alpha: number; start: number; end?: number };
+import type { SpriteAtlasImage, SpriteIdentifier, SpriteLookup } from './types.ts';
 
 /**
- * Low-level WebGL renderer - handles buffers, shaders, and GPU operations
+ * Owns the WebGL2 resources used to upload sprite instances and render them in a single instanced draw call.
  */
 export class Renderer {
-	gl: WebGL2RenderingContext;
-	program: WebGLProgram;
-	glPositionBuffer: WebGLBuffer;
-	glTextureCoordinateBuffer: WebGLBuffer;
-	vertexBuffer: Float32Array;
-	bufferPointer: number;
-	textureCoordinateBuffer: Float32Array;
-	spriteSheet: WebGLTexture;
-	spriteSheetWidth: number;
-	spriteSheetHeight: number;
-	bufferSize: number;
-	bufferCounter: number;
-	timeLocation: WebGLUniformLocation | null;
-	alphaLocation: WebGLUniformLocation | null;
-	isPerformanceMeasurementMode: boolean;
+	/** Raw WebGL2 context used by the sprite renderer and trusted render hooks. */
+	readonly gl: WebGL2RenderingContext;
+	/** Mutable internal storage exposed by `Engine` as a readonly live statistics view. */
+	readonly frameStats = {
+		spriteCount: 0,
+		uploadedInstanceBytes: 0,
+	};
+	private readonly program: WebGLProgram;
+	private readonly instanceBufferObject: WebGLBuffer;
+	private readonly vertexArray: WebGLVertexArrayObject;
+	private readonly instances: InstanceBuffer;
+	private readonly resolutionLocation: WebGLUniformLocation;
+	private readonly atlasSizeLocation: WebGLUniformLocation;
+	private readonly atlasSamplerLocation: WebGLUniformLocation;
+	private readonly lookupSamplerLocation: WebGLUniformLocation;
+	private gpuCapacity: number;
+	private atlasTexture: WebGLTexture | null = null;
+	private lookupTexture: WebGLTexture | null = null;
+	private atlasWidth = 0;
+	private atlasHeight = 0;
+	private sprites = new Map<string, ResolvedSprite>();
+	private destroyed = false;
 
-	// Post-processing
-	postProcessManager: PostProcessManager;
-
-	// Background effect
-	backgroundEffectManager: BackgroundEffectManager;
-
-	// Render-to-texture
-	renderFramebuffer: WebGLFramebuffer;
-	renderTexture: WebGLTexture;
-	renderTextureWidth: number;
-	renderTextureHeight: number;
-
-	// Cached sprite attribute locations
-	private spriteAttribLocations: { position: number; texcoord: number } | null = null;
-
-	// Draw order segmentation: preserves relative order between sprite-sheet draws and custom texture quads
-	protected textureSegments: TextureDrawSegment[] = [];
-	protected currentSegmentTexture: TextureSegmentSource = 'SPRITESHEET';
-	protected currentSegmentAlpha = 1;
-
-	constructor(canvas: HTMLCanvasElement) {
-		// alpha: false = opaque canvas (slight performance gain)
+	/**
+	 * Creates a renderer and allocates its initial CPU and GPU instance buffers.
+	 *
+	 * @param canvas - Canvas whose WebGL2 context receives the rendered sprites.
+	 * @param initialCapacity - Number of sprite instances to allocate space for initially.
+	 */
+	constructor(
+		private readonly canvas: HTMLCanvasElement,
+		initialCapacity: number
+	) {
 		const gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
 		if (!gl) {
-			throw new Error('WebGL2 is required but unavailable');
+			throw new Error('WebGL2 is required but unavailable.');
 		}
-		this.gl = gl;
 
-		// Compile and link shader program for sprite rendering
-		let vertexShader: WebGLShader | null = null;
-		let fragmentShader: WebGLShader | null = null;
+		this.gl = gl;
+		this.instances = new InstanceBuffer(initialCapacity);
+		this.gpuCapacity = this.instances.capacity;
+		const resources = createRendererResources(gl);
+		this.program = resources.program;
+		this.instanceBufferObject = resources.instanceBuffer;
+		this.vertexArray = resources.vertexArray;
+		this.resolutionLocation = resources.resolutionLocation;
+		this.atlasSizeLocation = resources.atlasSizeLocation;
+		this.atlasSamplerLocation = resources.atlasSamplerLocation;
+		this.lookupSamplerLocation = resources.lookupSamplerLocation;
+
+		gl.useProgram(this.program);
+		gl.bindVertexArray(this.vertexArray);
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBufferObject);
+		gl.bufferData(gl.ARRAY_BUFFER, this.gpuCapacity * INSTANCE_BYTE_STRIDE, gl.DYNAMIC_DRAW);
+
+		gl.enableVertexAttribArray(0);
+		gl.vertexAttribPointer(0, 4, gl.FLOAT, false, INSTANCE_BYTE_STRIDE, 0);
+		gl.vertexAttribDivisor(0, 1);
+		gl.enableVertexAttribArray(1);
+		gl.vertexAttribIPointer(1, 1, gl.UNSIGNED_INT, INSTANCE_BYTE_STRIDE, 4 * Uint32Array.BYTES_PER_ELEMENT);
+		gl.vertexAttribDivisor(1, 1);
+
+		gl.uniform1i(this.atlasSamplerLocation, 0);
+		gl.uniform1i(this.lookupSamplerLocation, 1);
+		gl.viewport(0, 0, canvas.width, canvas.height);
+		gl.clearColor(0, 0, 0, 1);
+		gl.enable(gl.BLEND);
+		gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+		gl.clear(gl.COLOR_BUFFER_BIT);
+	}
+
+	/**
+	 * Uploads a sprite atlas and its rectangle lookup table, replacing any previously uploaded atlas.
+	 *
+	 * @param image - Image containing all sprites in the atlas.
+	 * @param lookup - Mapping from sprite identifiers to rectangles within the atlas image.
+	 */
+	setSpriteAtlas(image: SpriteAtlasImage, lookup: SpriteLookup): void {
+		this.assertLive();
+		const { width, height } = image;
+		const prepared = prepareSpriteAtlas(lookup, width, height);
+		const maxTextureSize = Number(this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE));
+		if (prepared.sprites.size > maxTextureSize) {
+			throw new RangeError(`The sprite lookup exceeds the GPU limit of ${maxTextureSize} entries.`);
+		}
+
+		const nextAtlasTexture = requireResource(this.gl.createTexture(), 'atlas texture');
+		const nextLookupTexture = this.gl.createTexture();
+		if (!nextLookupTexture) {
+			this.gl.deleteTexture(nextAtlasTexture);
+			throw new Error('Could not create the WebGL sprite lookup texture.');
+		}
 
 		try {
-			vertexShader = createShader(this.gl, spriteVertexShader, this.gl.VERTEX_SHADER);
-			fragmentShader = createShader(this.gl, spriteFragmentShader, this.gl.FRAGMENT_SHADER);
-			this.program = createProgram(this.gl, [fragmentShader, vertexShader]);
-
-			// Delete shaders after successful linking to avoid GPU resource leaks
-			this.gl.deleteShader(vertexShader);
-			this.gl.deleteShader(fragmentShader);
+			this.uploadAtlasTexture(nextAtlasTexture, image);
+			this.uploadLookupTexture(nextLookupTexture, prepared.metadata, prepared.sprites.size);
 		} catch (error) {
-			// Clean up any shaders that were successfully created before the error
-			if (vertexShader) this.gl.deleteShader(vertexShader);
-			if (fragmentShader) this.gl.deleteShader(fragmentShader);
+			this.gl.deleteTexture(nextAtlasTexture);
+			this.gl.deleteTexture(nextLookupTexture);
 			throw error;
 		}
 
-		// Get shader variable locations (returns -1 if not found)
-		const a_position = this.gl.getAttribLocation(this.program, 'a_position'); // vertex position attribute
-		const a_texcoord = this.gl.getAttribLocation(this.program, 'a_texcoord'); // texture coordinate attribute
-		this.timeLocation = this.gl.getUniformLocation(this.program, 'u_time'); // time uniform for animations
-		this.alphaLocation = this.gl.getUniformLocation(this.program, 'u_alpha');
-
-		// Create GPU buffers (returns WebGLBuffer objects, data uploaded later)
-		this.glTextureCoordinateBuffer = this.gl.createBuffer(); // UV coordinates buffer
-		this.glPositionBuffer = this.gl.createBuffer(); // vertex positions buffer
-
-		// Validate buffer creation up-front to avoid null issues later
-		if (!this.glTextureCoordinateBuffer) {
-			throw new Error('Failed to create sprite texture coordinate buffer.');
+		if (this.atlasTexture) {
+			this.gl.deleteTexture(this.atlasTexture);
 		}
-		if (!this.glPositionBuffer) {
-			throw new Error('Failed to create sprite position buffer.');
+		if (this.lookupTexture) {
+			this.gl.deleteTexture(this.lookupTexture);
 		}
 
-		// Initialize post-processing system
-		this.postProcessManager = new PostProcessManager(this.gl);
-
-		// Initialize background effect system
-		this.backgroundEffectManager = new BackgroundEffectManager(this.gl);
-
-		this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height); // defines rendering area
-		this.gl.clearColor(0, 0, 0, 1.0); // set clear color to black (RGBA)
-		this.gl.clear(this.gl.COLOR_BUFFER_BIT); // fills with clearColor
-		this.gl.useProgram(this.program); // bind shader program for rendering
-		this.setUniform('u_resolution', canvas.width, canvas.height); // pass screen size to vertex shader
-
-		// Set texture uniform to use texture unit 0 (this is critical for texture sampling)
-		const textureLocation = this.gl.getUniformLocation(this.program, 'u_texture');
-		if (textureLocation) {
-			this.gl.uniform1i(textureLocation, 0); // Tell shader to sample from texture unit 0
-		}
-		if (this.alphaLocation) {
-			this.gl.uniform1f(this.alphaLocation, 1.0);
-		}
-
-		// Configure vertex attributes (tells GPU how to read buffer data)
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.glPositionBuffer); // make this the active buffer
-		this.gl.vertexAttribPointer(a_position, 2, this.gl.FLOAT, false, 0, 0); // 2 floats per vertex, no normalization, no stride/offset
-
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.glTextureCoordinateBuffer); // switch to texture coords buffer
-		this.gl.vertexAttribPointer(a_texcoord, 2, this.gl.FLOAT, false, 0, 0); // 2 floats per texture coordinate
-
-		// Enable alpha blending for premultiplied-alpha textures (matches createTexture)
-		this.gl.blendFunc(this.gl.ONE, this.gl.ONE_MINUS_SRC_ALPHA);
-		this.gl.enable(this.gl.BLEND); // turn on blending (disabled by default)
-
-		// Enable vertex attributes (make them available to vertex shader)
-		this.gl.enableVertexAttribArray(a_texcoord); // enable a_texcoord attribute
-		this.gl.enableVertexAttribArray(a_position); // enable a_position attribute
-
-		// Initialize buffers for batching (20,000 sprites max)
-		this.growBuffer(20000);
-
-		// Create render-to-texture setup
-		this.createRenderTexture(canvas.width, canvas.height);
-
-		// Initialize performance state
-		this.isPerformanceMeasurementMode = false;
+		this.atlasTexture = nextAtlasTexture;
+		this.lookupTexture = nextLookupTexture;
+		this.atlasWidth = width;
+		this.atlasHeight = height;
+		this.sprites = prepared.sprites;
 	}
 
 	/**
-	 * Allocate new buffers for batching sprites
-	 * @param newSize - Maximum number of sprites the buffer can hold
+	 * Starts a frame by clearing the queued instances and the canvas color buffer.
+	 *
+	 * This per-frame path intentionally performs no destruction-state validation.
 	 */
-	growBuffer(newSize: number): void {
-		// Each sprite = 2 triangles = 6 vertices = 12 floats (6 positions + 6 texture coords)
-		this.bufferSize = newSize * 12; // 12 floats per sprite
-		this.bufferPointer = 0;
-		this.bufferCounter = 0;
-		this.vertexBuffer = new Float32Array(this.bufferSize);
-		this.textureCoordinateBuffer = new Float32Array(this.bufferSize);
+	beginFrame(): void {
+		this.instances.reset();
+		const gl = this.gl;
+		// Hooks share the raw context and may leave clear-related state dirty. These repeated assignments intentionally
+		// establish the next frame's clear boundary; do not remove them as redundant constructor setup.
+		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+		gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+		gl.colorMask(true, true, true, true);
+		gl.disable(gl.SCISSOR_TEST);
+		gl.clearColor(0, 0, 0, 1);
+		gl.clear(gl.COLOR_BUFFER_BIT);
 	}
 
 	/**
-	 * Handle canvas resize - update viewport and shader resolution uniform
-	 * @param width - New canvas width
-	 * @param height - New canvas height
+	 * Writes one sprite directly into the reusable CPU-side instance buffer.
+	 *
+	 * This hot-path method intentionally does not validate programmer input. Invalid identifiers, coordinates, or dimensions
+	 * are programmer errors with unspecified consequences.
+	 *
+	 * @param x - Horizontal position of the sprite's top-left corner in canvas pixels.
+	 * @param y - Vertical position of the sprite's top-left corner in canvas pixels.
+	 * @param spriteIdentifier - Identifier associated with the sprite in the current atlas lookup.
+	 * @param width - Rendered width in pixels, or the atlas rectangle width when omitted.
+	 * @param height - Rendered height in pixels, or the atlas rectangle height when omitted.
+	 */
+	drawSprite(x: number, y: number, spriteIdentifier: SpriteIdentifier, width?: number, height?: number): void {
+		const sprite = this.sprites.get(normalizeSpriteIdentifier(spriteIdentifier))!;
+		const resolvedWidth = width ?? sprite.spriteWidth;
+		const resolvedHeight = height ?? sprite.spriteHeight;
+		this.instances.append(x, y, resolvedWidth, resolvedHeight, sprite.id);
+	}
+
+	/**
+	 * Uploads the used portion of the instance buffer and renders all queued sprites in insertion order.
+	 *
+	 * This per-frame path intentionally performs no destruction-state validation.
+	 */
+	flush(): void {
+		const spriteCount = this.instances.count;
+		this.frameStats.spriteCount = spriteCount;
+		this.frameStats.uploadedInstanceBytes = 0;
+		if (spriteCount === 0) {
+			return;
+		}
+		if (!this.atlasTexture || !this.lookupTexture) {
+			throw new Error('A sprite atlas must be set before drawing sprites.');
+		}
+
+		const gl = this.gl;
+		// Raw-context hooks may change any ordinary WebGL binding or capability. Reassert every state dependency of the
+		// sprite pass here; this defensive work is intentional and must not be cleaned up as apparently duplicate setup.
+		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+		gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+		gl.useProgram(this.program);
+		gl.bindVertexArray(this.vertexArray);
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBufferObject);
+		gl.enable(gl.BLEND);
+		gl.blendEquation(gl.FUNC_ADD);
+		gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+		gl.colorMask(true, true, true, true);
+		gl.disable(gl.SCISSOR_TEST);
+		gl.disable(gl.DEPTH_TEST);
+		gl.disable(gl.STENCIL_TEST);
+		gl.disable(gl.CULL_FACE);
+		gl.disable(gl.RASTERIZER_DISCARD);
+		if (this.instances.capacity > this.gpuCapacity) {
+			this.gpuCapacity = this.instances.capacity;
+			gl.bufferData(gl.ARRAY_BUFFER, this.gpuCapacity * INSTANCE_BYTE_STRIDE, gl.DYNAMIC_DRAW);
+		}
+		const instanceBytes = this.instances.usedBytes();
+		gl.bufferSubData(gl.ARRAY_BUFFER, 0, instanceBytes);
+		this.frameStats.uploadedInstanceBytes = instanceBytes.byteLength;
+
+		gl.activeTexture(gl.TEXTURE0);
+		gl.bindTexture(gl.TEXTURE_2D, this.atlasTexture);
+		gl.activeTexture(gl.TEXTURE1);
+		gl.bindTexture(gl.TEXTURE_2D, this.lookupTexture);
+		gl.uniform1i(this.atlasSamplerLocation, 0);
+		gl.uniform1i(this.lookupSamplerLocation, 1);
+		gl.uniform2f(this.resolutionLocation, this.canvas.width, this.canvas.height);
+		gl.uniform2f(this.atlasSizeLocation, this.atlasWidth, this.atlasHeight);
+		gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, spriteCount);
+	}
+
+	/**
+	 * Changes the canvas drawing-buffer dimensions and updates the WebGL viewport.
+	 *
+	 * @param width - New canvas width in pixels.
+	 * @param height - New canvas height in pixels.
 	 */
 	resize(width: number, height: number): void {
-		this.gl.viewport(0, 0, width, height); // update rendering area
-		this.setUniform('u_resolution', width, height); // update vertex shader coordinate conversion
-
-		// Recreate render texture with new size
-		this.createRenderTexture(width, height);
+		this.assertLive();
+		assertPositiveInteger(width, 'width');
+		assertPositiveInteger(height, 'height');
+		this.canvas.width = width;
+		this.canvas.height = height;
+		this.gl.viewport(0, 0, width, height);
 	}
 
 	/**
-	 * Load sprite sheet texture and store dimensions for UV coordinate calculation
-	 * @param image - Image containing all sprites
+	 * Releases every WebGL resource owned by this renderer.
+	 *
+	 * Calling this method more than once has no effect.
 	 */
-	loadSpriteSheet(image: HTMLImageElement | HTMLCanvasElement | OffscreenCanvas): void {
-		this.spriteSheet = createTexture(this.gl, image);
-		this.spriteSheetWidth = image.width;
-		this.spriteSheetHeight = image.height;
+	destroy(): void {
+		if (this.destroyed) {
+			return;
+		}
+		this.destroyed = true;
+
+		if (this.atlasTexture) {
+			this.gl.deleteTexture(this.atlasTexture);
+		}
+		if (this.lookupTexture) {
+			this.gl.deleteTexture(this.lookupTexture);
+		}
+		this.gl.deleteBuffer(this.instanceBufferObject);
+		this.gl.deleteVertexArray(this.vertexArray);
+		this.gl.deleteProgram(this.program);
+		this.atlasTexture = null;
+		this.lookupTexture = null;
+		this.sprites.clear();
 	}
 
-	uploadRgba8Texture(
-		data: Rgba8TextureData,
-		width: number,
-		height: number,
-		options: UploadRgba8TextureOptions = {}
-	): Rgba8Texture {
-		if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
-			throw new Error('RGBA8 texture dimensions must be positive integers');
-		}
-
-		const requiredByteLength = width * height * 4;
-		if (data.byteLength < requiredByteLength) {
-			throw new Error(`RGBA8 texture data is too small: expected at least ${requiredByteLength} bytes`);
-		}
-
+	/**
+	 * Uploads an atlas image and configures it for nearest-neighbor sprite sampling.
+	 *
+	 * @param texture - WebGL texture that receives the atlas image.
+	 * @param image - Source image containing the sprite atlas.
+	 */
+	private uploadAtlasTexture(texture: WebGLTexture, image: SpriteAtlasImage): void {
 		const gl = this.gl;
-		const filter = options.filter ?? options.texture?.filter ?? 'nearest';
-		const texture = options.texture?.texture ?? gl.createTexture();
-		if (!texture) {
-			throw new Error('Failed to create RGBA8 texture');
-		}
-
-		const existingTexture = options.texture;
-		const sizeChanged = !existingTexture || existingTexture.width !== width || existingTexture.height !== height;
-
+		gl.activeTexture(gl.TEXTURE0);
 		gl.bindTexture(gl.TEXTURE_2D, texture);
-		gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
-		this.applyTextureFilter(filter);
+		gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, image);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-		if (sizeChanged) {
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
-		} else {
-			gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, data);
-		}
-
-		if (existingTexture) {
-			existingTexture.width = width;
-			existingTexture.height = height;
-			existingTexture.filter = filter;
-			return existingTexture;
-		}
-
-		return { texture, width, height, filter };
-	}
-
-	drawTexture(
-		texture: Rgba8Texture,
-		x: number,
-		y: number,
-		width: number = texture.width,
-		height: number = texture.height,
-		alpha: number = 1
-	): void {
-		this.drawTexturedQuad(texture.texture, x, y, width, height, alpha);
-	}
-
-	deleteTexture(texture: Rgba8Texture): void {
-		this.gl.deleteTexture(texture.texture);
-	}
-
-	setAlpha(alpha: number): void {
-		if (!this.alphaLocation) {
-			return;
-		}
-
-		this.gl.uniform1f(this.alphaLocation, alpha);
 	}
 
 	/**
-	 * Low-level sprite drawing - specify exact pixel coordinates in sprite sheet
-	 * @param x - Screen X position
-	 * @param y - Screen Y position
-	 * @param width - Rendered width
-	 * @param height - Rendered height
-	 * @param spriteX - X pixel in sprite sheet
-	 * @param spriteY - Y pixel in sprite sheet
-	 * @param spriteWidth - Width in sprite sheet
-	 * @param spriteHeight - Height in sprite sheet
+	 * Uploads sprite rectangles to an integer texture that the vertex shader indexes by sprite ID.
+	 *
+	 * @param texture - WebGL texture that receives the packed rectangle metadata.
+	 * @param metadata - Packed x, y, width, and height values for each sprite.
+	 * @param spriteCount - Number of sprite records represented by the metadata.
 	 */
-	drawSpriteFromCoordinates(
-		x: number,
-		y: number,
-		width: number,
-		height: number,
-		spriteX: number,
-		spriteY: number,
-		spriteWidth: number = width,
-		spriteHeight: number = height
-	): void {
-		if (this.shouldRecordTextureSegments()) {
-			this.ensureTextureSegment('SPRITESHEET', 1);
-		}
-
-		// Auto-flush buffer if full (prevents overflow)
-		if (this.bufferCounter + 12 > this.bufferSize) {
-			this.renderVertexBuffer();
-			this.bufferCounter = 0;
-			this.bufferPointer = 0;
-		}
-
-		const bufferPointer = this.bufferPointer;
-
-		fillBufferWithRectangleVertices(this.vertexBuffer, bufferPointer, x, y, width, height);
-		fillBufferWithSpriteCoordinates(
-			this.textureCoordinateBuffer,
-			bufferPointer,
-			spriteX,
-			spriteY,
-			spriteWidth,
-			spriteHeight,
-			this.spriteSheetWidth,
-			this.spriteSheetHeight
-		);
-
-		// Advance buffer pointer (12 floats = 6 vertices = 2 triangles)
-		this.bufferCounter += 12;
-		this.bufferPointer = this.bufferCounter;
-	}
-
-	/**
-	 * Draw line with thickness using geometric calculation
-	 * @param x1 - Start X coordinate
-	 * @param y1 - Start Y coordinate
-	 * @param x2 - End X coordinate
-	 * @param y2 - End Y coordinate
-	 * @param spriteX - X pixel in sprite sheet
-	 * @param spriteY - Y pixel in sprite sheet
-	 * @param spriteWidth - Width in sprite sheet
-	 * @param spriteHeight - Height in sprite sheet
-	 * @param thickness - Line thickness in pixels
-	 */
-	drawLineFromCoordinates(
-		x1: number,
-		y1: number,
-		x2: number,
-		y2: number,
-		spriteX: number,
-		spriteY: number,
-		spriteWidth: number,
-		spriteHeight: number,
-		thickness: number
-	): void {
-		if (this.shouldRecordTextureSegments()) {
-			this.ensureTextureSegment('SPRITESHEET', 1);
-		}
-
-		// Auto-flush buffer if full
-		if (this.bufferCounter + 12 > this.bufferSize) {
-			this.renderVertexBuffer();
-			this.bufferCounter = 0;
-			this.bufferPointer = 0;
-		}
-
-		const bufferPointer = this.bufferPointer;
-
-		// Generate line geometry using trigonometry (see buffer.ts for math)
-		fillBufferWithLineVertices(this.vertexBuffer, bufferPointer, x1, y1, x2, y2, thickness);
-
-		// Use sprite texture to fill the line shape
-		fillBufferWithSpriteCoordinates(
-			this.textureCoordinateBuffer,
-			bufferPointer,
-			spriteX,
-			spriteY,
-			spriteWidth,
-			spriteHeight,
-			this.spriteSheetWidth,
-			this.spriteSheetHeight
-		);
-
-		this.bufferCounter += 12;
-		this.bufferPointer = this.bufferCounter;
-	}
-
-	/**
-	 * Upload batched vertex data to GPU and render all sprites in one draw call
-	 */
-	renderVertexBuffer(): void {
+	private uploadLookupTexture(texture: WebGLTexture, metadata: Uint16Array, spriteCount: number): void {
 		const gl = this.gl;
-
-		// Bind sprite sheet texture for sprite rendering
-		if (this.spriteSheet) {
-			gl.activeTexture(gl.TEXTURE0);
-			gl.bindTexture(gl.TEXTURE_2D, this.spriteSheet);
-		}
-
-		gl.bindBuffer(gl.ARRAY_BUFFER, this.glTextureCoordinateBuffer); // make texture buffer active
-		gl.bufferData(gl.ARRAY_BUFFER, this.textureCoordinateBuffer, gl.STATIC_DRAW); // copy Float32Array to GPU
-
-		gl.bindBuffer(gl.ARRAY_BUFFER, this.glPositionBuffer); // switch to position buffer
-		gl.bufferData(gl.ARRAY_BUFFER, this.vertexBuffer, gl.STATIC_DRAW); // copy positions to GPU
-
-		gl.drawArrays(gl.TRIANGLES, 0, Math.min(this.bufferCounter / 2, this.bufferSize / 2)); // render triangles from vertex 0
-
-		// Force GPU sync for accurate performance measurement
-		if (this.isPerformanceMeasurementMode) {
-			gl.finish(); // blocks CPU until GPU rendering completes (slow!)
-		}
-	}
-
-	/**
-	 * Render sprites to texture, then apply post-processing to canvas
-	 */
-	renderWithPostProcessing(elapsedTime: number): void {
-		const gl = this.gl;
-
-		// Phase 1: Render sprites to off-screen texture
-		this.startRenderToTexture();
-
-		// Render background effect before sprites
-		const renderedBackground = this.backgroundEffectManager.render(
-			elapsedTime,
-			this.renderTextureWidth,
-			this.renderTextureHeight,
-		);
-		if (renderedBackground) {
-			this.restoreSpriteState();
-		}
-
-		this.renderQueuedTextureSegments();
-		this.endRenderToTexture();
-
-		// Ensure all rendering to texture is complete
-		gl.flush();
-
-		// Explicitly unbind any textures before post-processing
-		gl.bindTexture(gl.TEXTURE_2D, null);
-
-		// Phase 2: Render textured quad to canvas with post-effects
-		this.renderPostProcess(elapsedTime);
-		this.resetTextureSegments();
-	}
-
-	/**
-	 * Restore sprite shader program and vertex attributes after a fullscreen quad render
-	 */
-	protected restoreSpriteState(): void {
-		const gl = this.gl;
-		const program = this.program;
-
-		gl.useProgram(program);
-
-		// Cache attribute locations on first call to avoid repeated lookups
-		if (!this.spriteAttribLocations) {
-			this.spriteAttribLocations = {
-				position: gl.getAttribLocation(program, 'a_position'),
-				texcoord: gl.getAttribLocation(program, 'a_texcoord'),
-			};
-		}
-
-		const attribLocations = this.spriteAttribLocations;
-
-		if (attribLocations.position !== -1) {
-			gl.bindBuffer(gl.ARRAY_BUFFER, this.glPositionBuffer);
-			gl.vertexAttribPointer(attribLocations.position, 2, gl.FLOAT, false, 0, 0);
-			gl.enableVertexAttribArray(attribLocations.position);
-		}
-
-		if (attribLocations.texcoord !== -1) {
-			gl.bindBuffer(gl.ARRAY_BUFFER, this.glTextureCoordinateBuffer);
-			gl.vertexAttribPointer(attribLocations.texcoord, 2, gl.FLOAT, false, 0, 0);
-			gl.enableVertexAttribArray(attribLocations.texcoord);
-		}
-	}
-
-	protected shouldRecordTextureSegments(): boolean {
-		return true;
-	}
-
-	protected drawTexturedQuad(
-		texture: WebGLTexture,
-		x: number,
-		y: number,
-		width: number,
-		height: number,
-		alpha: number = 1,
-		flipY: boolean = false
-	): void {
-		if (this.shouldRecordTextureSegments()) {
-			this.ensureTextureSegment(texture, alpha);
-		}
-
-		// Auto-flush buffer if full. This follows the existing sprite overflow behavior.
-		if (this.bufferCounter + 12 > this.bufferSize) {
-			this.renderVertexBuffer();
-			this.resetBuffers();
-			if (this.shouldRecordTextureSegments()) {
-				this.ensureTextureSegment(texture, alpha);
-			}
-		}
-
-		const bufferPointer = this.bufferPointer;
-		fillBufferWithRectangleVertices(this.vertexBuffer, bufferPointer, x, y, width, height);
-		this.fillTextureQuadCoordinates(this.textureCoordinateBuffer, bufferPointer, flipY);
-
-		this.bufferCounter += 12;
-		this.bufferPointer = this.bufferCounter;
-	}
-
-	protected renderQueuedTextureSegments(): void {
-		const gl = this.gl;
-		this.closeCurrentTextureSegment();
-
-		if (this.textureSegments.length === 0) {
-			this.renderVertexBuffer();
-			return;
-		}
-
-		gl.bindBuffer(gl.ARRAY_BUFFER, this.glTextureCoordinateBuffer);
-		gl.bufferData(gl.ARRAY_BUFFER, this.textureCoordinateBuffer, gl.STATIC_DRAW);
-
-		gl.bindBuffer(gl.ARRAY_BUFFER, this.glPositionBuffer);
-		gl.bufferData(gl.ARRAY_BUFFER, this.vertexBuffer, gl.STATIC_DRAW);
-
-		const textureLocation = gl.getUniformLocation(this.program, 'u_texture');
-		if (textureLocation) {
-			gl.uniform1i(textureLocation, 0);
-		}
-
-		for (const segment of this.textureSegments) {
-			const start = segment.start;
-			const end = segment.end ?? this.bufferCounter / 2;
-			const count = end - start;
-			if (count <= 0) {
-				continue;
-			}
-
-			gl.activeTexture(gl.TEXTURE0);
-			this.setAlpha(segment.alpha);
-			if (segment.texture === 'SPRITESHEET') {
-				if (this.spriteSheet) {
-					gl.bindTexture(gl.TEXTURE_2D, this.spriteSheet);
-				}
-			} else {
-				gl.bindTexture(gl.TEXTURE_2D, segment.texture);
-			}
-			gl.drawArrays(gl.TRIANGLES, start, count);
-		}
-
-		this.setAlpha(1);
-
-		if (this.isPerformanceMeasurementMode) {
-			gl.finish();
-		}
-	}
-
-	protected resetTextureSegments(): void {
-		this.textureSegments.length = 0;
-		this.currentSegmentTexture = 'SPRITESHEET';
-		this.currentSegmentAlpha = 1;
-	}
-
-	protected ensureTextureSegment(texture: TextureSegmentSource, alpha: number): void {
-		const currentVertexIndex = this.bufferCounter / 2;
-		if (this.textureSegments.length === 0) {
-			this.textureSegments.push({ texture, alpha, start: currentVertexIndex });
-			this.currentSegmentTexture = texture;
-			this.currentSegmentAlpha = alpha;
-			return;
-		}
-
-		if (this.currentSegmentTexture !== texture || this.currentSegmentAlpha !== alpha) {
-			this.closeCurrentTextureSegment();
-			this.textureSegments.push({ texture, alpha, start: currentVertexIndex });
-			this.currentSegmentTexture = texture;
-			this.currentSegmentAlpha = alpha;
-		}
-	}
-
-	protected closeCurrentTextureSegment(): void {
-		const currentSegment = this.textureSegments[this.textureSegments.length - 1];
-		if (currentSegment && currentSegment.end === undefined) {
-			currentSegment.end = this.bufferCounter / 2;
-		}
-	}
-
-	private applyTextureFilter(filter: Rgba8TextureFilter): void {
-		const gl = this.gl;
-		const glFilter = filter === 'linear' ? gl.LINEAR : gl.NEAREST;
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, glFilter);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, glFilter);
-	}
-
-	private fillTextureQuadCoordinates(buffer: Float32Array, offset: number, flipY: boolean): void {
-		const vTop = flipY ? 1 : 0;
-		const vBottom = flipY ? 0 : 1;
-
-		buffer[offset] = 0;
-		buffer[offset + 1] = vTop;
-		buffer[offset + 2] = 1;
-		buffer[offset + 3] = vTop;
-		buffer[offset + 4] = 0;
-		buffer[offset + 5] = vBottom;
-		buffer[offset + 6] = 0;
-		buffer[offset + 7] = vBottom;
-		buffer[offset + 8] = 1;
-		buffer[offset + 9] = vTop;
-		buffer[offset + 10] = 1;
-		buffer[offset + 11] = vBottom;
-	}
-
-	/**
-	 * Helper to set shader uniform values
-	 * @param name - Uniform variable name in shader
-	 * @param values - 1-4 numeric values to set
-	 */
-	setUniform(name: string, ...values: number[]): void {
-		const gl = this.gl;
-		const location = gl.getUniformLocation(this.program, name);
-		if (!location) {
-			throw new Error(`Failed to get uniform location for: ${name}`);
-		}
-
-		// Call appropriate uniform function based on value count
-		switch (values.length) {
-			case 1:
-				gl.uniform1f(location, values[0]); // single float (like time)
-				break;
-			case 2:
-				gl.uniform2f(location, values[0], values[1]); // vec2 (like resolution)
-				break;
-			case 3:
-				gl.uniform3f(location, values[0], values[1], values[2]); // vec3 (like RGB color)
-				break;
-			case 4:
-				gl.uniform4f(location, values[0], values[1], values[2], values[3]); // vec4 (like RGBA color)
-				break;
-			default:
-				throw new Error(`Unsupported uniform value count: ${values.length}`);
-		}
-	}
-
-	clearScreen(): void {
-		this.gl.clear(this.gl.COLOR_BUFFER_BIT); // fills with clearColor
-	}
-
-	updateTime(elapsedTime: number): void {
-		if (this.timeLocation) {
-			this.gl.uniform1f(this.timeLocation, elapsedTime); // upload single float to u_time uniform
-		}
-	}
-
-	resetBuffers(): void {
-		this.bufferPointer = 0; // Reset write position
-		this.bufferCounter = 0; // Reset usage counter
-		this.resetTextureSegments();
-	}
-
-	getBufferStats(): { triangles: number; maxTriangles: number } {
-		const triangles = this.bufferCounter / 2; // 2 triangles per sprite
-		const maxTriangles = Math.floor(this.vertexBuffer.length / 2);
-		return { triangles, maxTriangles };
-	}
-
-	/**
-	 * Create framebuffer and texture for render-to-texture
-	 */
-	createRenderTexture(width: number, height: number): void {
-		const gl = this.gl;
-
-		this.renderTextureWidth = width;
-		this.renderTextureHeight = height;
-
-		// Create texture to render into
-		this.renderTexture = gl.createTexture()!;
-		gl.bindTexture(gl.TEXTURE_2D, this.renderTexture);
-		gl.texImage2D(
-			gl.TEXTURE_2D,
-			0,
-			gl.RGBA8,
-			width,
-			height,
-			0,
-			gl.RGBA,
-			gl.UNSIGNED_BYTE,
-			null
-		);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+		gl.activeTexture(gl.TEXTURE1);
+		gl.bindTexture(gl.TEXTURE_2D, texture);
+		gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16UI, spriteCount, 1, 0, gl.RGBA_INTEGER, gl.UNSIGNED_SHORT, metadata);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+	}
 
-		// Create framebuffer
-		this.renderFramebuffer = gl.createFramebuffer()!;
-		gl.bindFramebuffer(gl.FRAMEBUFFER, this.renderFramebuffer);
-		gl.framebufferTexture2D(
-			gl.FRAMEBUFFER,
-			gl.COLOR_ATTACHMENT0,
-			gl.TEXTURE_2D,
-			this.renderTexture,
-			0
-		);
-
-		// Check framebuffer completeness
-		if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
-			throw new Error('Framebuffer not complete');
+	/**
+	 * Throws when an operation requiring live WebGL resources is attempted after destruction.
+	 */
+	private assertLive(): void {
+		if (this.destroyed) {
+			throw new Error('The glugglug2 renderer has been destroyed.');
 		}
-
-		// Unbind framebuffer (render to canvas by default)
-		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	}
+}
 
-	/**
-	 * Start rendering to the off-screen texture
-	 */
-	startRenderToTexture(): void {
-		const gl = this.gl;
+/**
+ * Compiles and links the vertex and fragment shaders into a WebGL program.
+ *
+ * @param gl - WebGL2 context used to create the program.
+ * @param vertexSource - GLSL source for the vertex shader.
+ * @param fragmentSource - GLSL source for the fragment shader.
+ * @returns A linked WebGL program ready for use.
+ */
+function createProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string): WebGLProgram {
+	const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexSource);
+	let fragmentShader: WebGLShader | null = null;
+	let program: WebGLProgram | null = null;
 
-		gl.bindFramebuffer(gl.FRAMEBUFFER, this.renderFramebuffer);
-		gl.viewport(0, 0, this.renderTextureWidth, this.renderTextureHeight);
-		gl.clear(gl.COLOR_BUFFER_BIT);
+	try {
+		fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+		program = requireResource(gl.createProgram(), 'shader program');
+		gl.attachShader(program, vertexShader);
+		gl.attachShader(program, fragmentShader);
+		gl.linkProgram(program);
+		if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+			throw new Error(gl.getProgramInfoLog(program) ?? 'Could not link the sprite shader program.');
+		}
+		return program;
+	} catch (error) {
+		if (program) {
+			gl.deleteProgram(program);
+		}
+		throw error;
+	} finally {
+		gl.deleteShader(vertexShader);
+		if (fragmentShader) {
+			gl.deleteShader(fragmentShader);
+		}
 	}
+}
 
-	/**
-	 * End rendering to texture and switch back to canvas
-	 */
-	endRenderToTexture(): void {
-		const gl = this.gl;
+/**
+ * Creates the shader program, instance buffer, vertex array, and uniform locations required by the renderer.
+ *
+ * @param gl - WebGL2 context used to allocate the resources.
+ * @returns The complete set of initialized renderer resources.
+ */
+function createRendererResources(gl: WebGL2RenderingContext): {
+	program: WebGLProgram;
+	instanceBuffer: WebGLBuffer;
+	vertexArray: WebGLVertexArrayObject;
+	resolutionLocation: WebGLUniformLocation;
+	atlasSizeLocation: WebGLUniformLocation;
+	atlasSamplerLocation: WebGLUniformLocation;
+	lookupSamplerLocation: WebGLUniformLocation;
+} {
+	const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
+	let instanceBuffer: WebGLBuffer | null = null;
+	let vertexArray: WebGLVertexArrayObject | null = null;
 
-		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-		gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+	try {
+		instanceBuffer = requireResource(gl.createBuffer(), 'instance buffer');
+		vertexArray = requireResource(gl.createVertexArray(), 'vertex array');
+		return {
+			program,
+			instanceBuffer,
+			vertexArray,
+			resolutionLocation: requireUniform(gl, program, 'u_resolution'),
+			atlasSizeLocation: requireUniform(gl, program, 'u_atlasSize'),
+			atlasSamplerLocation: requireUniform(gl, program, 'u_atlas'),
+			lookupSamplerLocation: requireUniform(gl, program, 'u_spriteRectangles'),
+		};
+	} catch (error) {
+		if (instanceBuffer) {
+			gl.deleteBuffer(instanceBuffer);
+		}
+		if (vertexArray) {
+			gl.deleteVertexArray(vertexArray);
+		}
+		gl.deleteProgram(program);
+		throw error;
 	}
+}
 
-	/**
-	 * Render post-process effects using the new effect system
-	 */
-	renderPostProcess(elapsedTime: number): void {
-		const gl = this.gl;
-
-		// Make sure we're rendering to canvas, not framebuffer
-		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-		// Clear canvas for post-processing
-		gl.clear(gl.COLOR_BUFFER_BIT);
-
-		// Disable blending for direct texture rendering
-		gl.disable(gl.BLEND);
-
-		// Use post-process manager to render all effects
-		this.postProcessManager.render(this.renderTexture, elapsedTime, gl.canvas.width, gl.canvas.height);
-
-		// Re-enable blending for next frame (premultiplied-alpha)
-		gl.enable(gl.BLEND);
-		gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-
-		// Restore sprite state after post-processing
-		this.restoreSpriteState();
+/**
+ * Compiles one GLSL shader and reports the compiler log when compilation fails.
+ *
+ * @param gl - WebGL2 context used to create the shader.
+ * @param type - WebGL shader type, such as `VERTEX_SHADER` or `FRAGMENT_SHADER`.
+ * @param source - GLSL source to compile.
+ * @returns The compiled shader.
+ */
+function createShader(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
+	const shader = requireResource(gl.createShader(type), 'shader');
+	gl.shaderSource(shader, source);
+	gl.compileShader(shader);
+	if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+		const message = gl.getShaderInfoLog(shader) ?? 'Could not compile a sprite shader.';
+		gl.deleteShader(shader);
+		throw new Error(message);
 	}
+	return shader;
+}
 
-	/**
-	 * Set the active post-process effect, replacing any previous one
-	 */
-	setPostProcessEffect(effect: PostProcessEffect): void {
-		this.postProcessManager.setEffect(effect);
+/**
+ * Narrows a nullable WebGL allocation result or throws a descriptive allocation error.
+ *
+ * @param resource - Resource returned by a WebGL creation call.
+ * @param name - Human-readable resource name used in the error message.
+ * @returns The allocated resource.
+ */
+function requireResource<T>(resource: T | null, name: string): T {
+	if (!resource) {
+		throw new Error(`Could not create the WebGL ${name}.`);
 	}
+	return resource;
+}
 
-	/**
-	 * Clear the active post-process effect
-	 */
-	clearPostProcessEffect(): void {
-		this.postProcessManager.clearEffect();
+/**
+ * Resolves a required uniform location from a linked shader program.
+ *
+ * @param gl - WebGL2 context that owns the program.
+ * @param program - Linked program containing the uniform.
+ * @param name - GLSL uniform name to resolve.
+ * @returns The resolved uniform location.
+ */
+function requireUniform(gl: WebGL2RenderingContext, program: WebGLProgram, name: string): WebGLUniformLocation {
+	const location = gl.getUniformLocation(program, name);
+	if (!location) {
+		throw new Error(`Could not find the ${name} shader uniform.`);
 	}
+	return location;
+}
 
-	/**
-	 * Set the active background effect, replacing any previous one
-	 */
-	setBackgroundEffect(effect: BackgroundEffect): void {
-		this.backgroundEffectManager.setEffect(effect);
+/**
+ * Verifies that a numeric configuration value is a positive integer.
+ *
+ * @param value - Value to verify.
+ * @param name - Parameter name used in the error message.
+ */
+function assertPositiveInteger(value: number, name: string): void {
+	if (!Number.isInteger(value) || value <= 0) {
+		throw new RangeError(`${name} must be a positive integer.`);
 	}
-
-	/**
-	 * Clear the active background effect
-	 */
-	clearBackgroundEffect(): void {
-		this.backgroundEffectManager.clearEffect();
-	}
-
 }

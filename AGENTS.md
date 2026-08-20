@@ -1,23 +1,25 @@
 # Repository Guidelines
 
 ## Package Scope & Layout
-- Path: `packages/glugglug`; source in `src/`, output in `dist/` (ES modules).
-- Consumed via workspace alias `glugglug` after build.
 
-## Build, Test, Dev
-- From root: `npx nx run glugglug:build|test|typecheck`.
-- From package: use Nx commands (`npx nx run glugglug:build`, `npx nx run glugglug:test`, `npx nx run glugglug:typecheck`), or legacy `npm run` scripts (build, test, typecheck).
-- Output: `dist/` artifacts referenced by Vite aliases in the root app.
+- Parent-workspace path: `packages/editor/packages/glugglug`; source in `src/`, output in `dist/`.
+- Package and Nx project name: `glugglug2`.
+- The package is maintained in the `glugglug` Git submodule even though consumers import `glugglug2`.
+
+## Build, Test, and Development
+
+- From the parent workspace, use `npx nx run glugglug2:build|test|typecheck|lint`.
+- Run visual regressions with `npx nx run glugglug2:test:screenshot`.
+- Update intentional visual changes with `npx nx run glugglug2:test:screenshot:update`.
 
 ## Coding Style
-- TypeScript, strict mode. ESLint + `@typescript-eslint` with `import/order`.
-- Use ESLint as the fixer (`npx eslint --fix <files>`); it owns formatting rules such as tabs, single quotes, semicolons, width 120, and trailing commas.
-- Prefer alias imports `@8f4e/<pkg>` for workspace modules.
+
+- Use TypeScript ES modules and keep the public renderer API browser-focused.
+- Use Biome as the fixer; it owns formatting and import organization.
+- Preserve the allocation-conscious, validation-free sprite hot path documented under `docs/adr/`.
 
 ## Testing
-- Jest with `@swc/jest`. Test files under `**/__tests__/**` or `*.test.ts`.
-- Keep tests fast and unit-scoped; no browser required.
 
-## Commits & PRs
-- Commits: imperative, scoped (e.g., `glugglug: add sprite util`).
-- PRs: include summary, rationale, and test notes; link issues.
+- Use Vitest for unit tests colocated with source files.
+- Keep WebGL rendering coverage in the Playwright screenshot suite.
+- Run build, typecheck, unit tests, and visual regressions after renderer or plugin changes.

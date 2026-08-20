@@ -1,31 +1,56 @@
+export type SpriteIdentifier = string | number;
+
 export type SpriteCoordinates = {
-	spriteWidth: number;
-	spriteHeight: number;
 	x: number;
 	y: number;
+	spriteWidth: number;
+	spriteHeight: number;
 };
 
-export type SpriteLookup = Record<string | number, SpriteCoordinates>;
+export type SpriteLookup = Record<SpriteIdentifier, SpriteCoordinates>;
+
+export type SpriteAtlasImage = HTMLImageElement | HTMLCanvasElement | OffscreenCanvas | ImageBitmap;
 
 export type EngineOptions = {
-	/** Enable caching functionality. Defaults to false. */
-	caching?: boolean;
-	/** Maximum number of cache items when caching is enabled. Defaults to 50. */
-	maxCacheItems?: number;
+	/** Initial number of sprite instances retained by the CPU and GPU buffers. */
+	initialCapacity?: number;
 };
 
-export type Rgba8TextureFilter = 'nearest' | 'linear';
+export type RenderCallback = () => void;
 
-export type Rgba8TextureData = Uint8Array | Uint8ClampedArray;
-
-export type Rgba8Texture = {
-	texture: WebGLTexture;
-	width: number;
-	height: number;
-	filter: Rgba8TextureFilter;
+/** Statistics for the most recently completed sprite pass. */
+export type SpriteFrameStats = {
+	/** Number of sprite rectangles submitted to the completed sprite pass. */
+	readonly spriteCount: number;
+	/** Number of used instance-buffer bytes uploaded for that sprite pass. */
+	readonly uploadedInstanceBytes: number;
 };
 
-export type UploadRgba8TextureOptions = {
-	texture?: Rgba8Texture;
-	filter?: Rgba8TextureFilter;
+/**
+ * Performs one trusted custom WebGL pass during a render frame.
+ *
+ * @param gl - Raw context shared with the engine and other render hooks.
+ */
+export type RenderHook = (gl: WebGL2RenderingContext) => void;
+
+/**
+ * Mutable ordered hook lists surrounding application sprite submission.
+ *
+ * Hooks share the engine's raw WebGL context. They own every resource they
+ * create, and mutating a list while it is being iterated has unspecified
+ * consequences.
+ */
+export type RenderHooks = {
+	/** Hooks that run after the frame clear and before the application callback. */
+	readonly preDraw: RenderHook[];
+	/** Hooks that run after the sprite pass, including frames with no sprites. */
+	readonly postDraw: RenderHook[];
+};
+
+/** Minimal public surface consumed by render-hook plugins. */
+export type RenderPluginHost = {
+	/** Raw WebGL2 context shared by the engine and trusted plugins. */
+	readonly gl: WebGL2RenderingContext;
+	/** Ordered hook lists used to place custom passes around the sprite pass. */
+	readonly hooks: RenderHooks;
 };
