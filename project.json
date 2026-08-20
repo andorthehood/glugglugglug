@@ -21,8 +21,8 @@
 		"lint": {
 			"executor": "nx:run-commands",
 			"options": {
-				"command": "biome check --write .",
-				"cwd": "{projectRoot}"
+				"command": "biome check --write --vcs-enabled=false packages/editor/packages/glugglug",
+				"cwd": "{workspaceRoot}"
 			}
 		},
 		"test": {
