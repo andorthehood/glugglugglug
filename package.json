@@ -1,11 +1,13 @@
 {
   "name": "glugglug",
   "version": "2.0.0",
-  "private": true,
-  "description": "Immediate-mode WebGL2 sprite renderer for 8f4e",
+  "description": "Immediate-mode WebGL2 sprite renderer",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -27,8 +29,23 @@
     "url": "https://github.com/andorthehood/glugglug/issues"
   },
   "homepage": "https://github.com/andorthehood/glugglug#readme",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "dev:test": "vite --config screenshot-tests/vite.config.ts",
+    "lint": "biome check --write --vcs-enabled=false .",
+    "prepack": "npm run build",
+    "test": "vitest --run",
+    "test:screenshot": "playwright test",
+    "test:screenshot:update": "playwright test --update-snapshots",
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {},
   "devDependencies": {
-    "vite": "7.3.5"
+    "@biomejs/biome": "2.5.0",
+    "@playwright/test": "1.61.1",
+    "typescript": "6.0.3",
+    "vite": "7.3.5",
+    "vitest": "4.1.7"
   }
 }

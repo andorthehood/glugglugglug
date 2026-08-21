@@ -8,9 +8,10 @@
 
 ## Build, Test, and Development
 
-- From the parent workspace, use `npx nx run glugglug:build|test|typecheck|lint`.
-- Run visual regressions with `npx nx run glugglug:test:screenshot`.
-- Update intentional visual changes with `npx nx run glugglug:test:screenshot:update`.
+- Run standalone package tasks with `npm run build|test|typecheck|lint`.
+- Run visual regressions with `npm run test:screenshot`.
+- Update intentional visual changes with `npm run test:screenshot:update`.
+- The parent workspace may invoke the same scripts through the optional Nx `project.json` adapter.
 
 ## Coding Style
 

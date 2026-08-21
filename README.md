@@ -193,6 +193,21 @@ One context can be reused across frames. Every `startGroup()` call must have a m
 fallback glyphs, and space handling belong to higher-level application utilities. The context owns neither its target nor
 the atlas, render loop, or caches.
 
+## Development
+
+The package owns its TypeScript, Vitest, Playwright, and Biome configuration and can be developed without the 8f4e
+workspace:
+
+```sh
+npm ci
+npm run build
+npm test
+npm run typecheck
+```
+
+`npm pack` builds and packages only `dist/`, together with the package metadata and README. The repository's
+`project.json` is an optional adapter for consuming the same npm scripts from the parent Nx workspace.
+
 ## Visual regression tests
 
 The Chromium snapshot covers atlas selection, default and explicit sizing, positioning, insertion-order layering,
@@ -200,6 +215,6 @@ alpha blending, instance-buffer growth, clearing between frames, shader and RGBA
 final GPU-copy post-process pass.
 
 ```sh
-npx nx run glugglug:test:screenshot
-npx nx run glugglug:test:screenshot:update
+npm run test:screenshot
+npm run test:screenshot:update
 ```
