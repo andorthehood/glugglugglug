@@ -1,6 +1,6 @@
 import type { RenderHook } from '../../types.ts';
 
-/** Default fullscreen vertex shader compatible with old glugglug effect varyings. */
+/** Default fullscreen vertex shader compatible with old glugglugglug effect varyings. */
 export const FULLSCREEN_VERTEX_SHADER_SOURCE = `#version 300 es
 	precision mediump float;
 

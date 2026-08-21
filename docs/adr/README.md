@@ -1,6 +1,6 @@
-# glugglug Architecture Decision Records
+# glugglugglug Architecture Decision Records
 
-This directory records architectural decisions that specifically govern the `glugglug` package.
+This directory records architectural decisions that specifically govern the `glugglugglug` package.
 
 ## Index
 
