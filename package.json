@@ -1,7 +1,14 @@
 {
-  "name": "glugglug",
+  "name": "glugglugglug",
   "version": "2.0.0",
   "description": "Immediate-mode WebGL2 sprite renderer",
+  "keywords": [
+    "webgl",
+    "webgl2",
+    "sprite",
+    "renderer",
+    "graphics"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -11,30 +18,37 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./utils": {
       "types": "./dist/utils/index.d.ts",
+      "import": "./dist/utils/index.js",
       "default": "./dist/utils/index.js"
     }
   },
   "sideEffects": false,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/andorthehood/glugglug.git"
+    "url": "git+https://github.com/andorthehood/glugglugglug.git"
   },
   "author": "Andor Polgar",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/andorthehood/glugglug/issues"
+    "url": "https://github.com/andorthehood/glugglugglug/issues"
   },
-  "homepage": "https://github.com/andorthehood/glugglug#readme",
+  "homepage": "https://github.com/andorthehood/glugglugglug#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
+    "check": "biome check --vcs-enabled=false .",
     "dev": "tsc --watch",
     "dev:test": "vite --config screenshot-tests/vite.config.ts",
     "lint": "biome check --write --vcs-enabled=false .",
     "prepack": "npm run build",
+    "prepublishOnly": "npm run check && npm run typecheck && npm test",
     "test": "vitest --run",
     "test:screenshot": "playwright test",
     "test:screenshot:update": "playwright test --update-snapshots",

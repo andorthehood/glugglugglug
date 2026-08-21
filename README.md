@@ -1,9 +1,9 @@
-# glugglug
+# glugglugglug
 
-`glugglug` is a small immediate-mode WebGL2 sprite renderer. It keeps one sprite atlas in GPU memory and uploads one compact, ordered instance list per frame.
+`glugglugglug` is a small immediate-mode WebGL2 sprite renderer. It keeps one sprite atlas in GPU memory and uploads one compact, ordered instance list per frame.
 
 ```ts
-import { Engine, type SpriteLookup } from 'glugglug';
+import { Engine, type SpriteLookup } from 'glugglugglug';
 
 const engine = new Engine(canvas);
 const lookup: SpriteLookup = {
@@ -73,7 +73,7 @@ uploads and draws all submitted lines in one instanced `postDraw` call, above ev
 thickness, and packed RGBA color; it does not use or modify the sprite atlas.
 
 ```ts
-import { Engine, LineDrawer } from 'glugglug';
+import { Engine, LineDrawer } from 'glugglugglug';
 
 const engine = new Engine(canvas);
 const lines = new LineDrawer(engine);
@@ -94,12 +94,12 @@ invalid coordinates, thicknesses, colors, or lifecycle calls are programmer erro
 ### Shader underlay plugin
 
 `ShaderUnderlay` renders one optional fullscreen shader in `preDraw`, below RGBA layers, sprites, and overlays registered
-after it. Its default vertex shader exposes the old glugglug-compatible `v_screenCoord`, `v_textureCoord`, and
+after it. Its default vertex shader exposes the old glugglugglug-compatible `v_screenCoord`, `v_textureCoord`, and
 top-left-origin `v_topLeftScreenCoord` varyings. Fragment shaders may optionally declare `u_time` in seconds and
 `u_resolution` in drawing-buffer pixels.
 
 ```ts
-import { ShaderUnderlay } from 'glugglug';
+import { ShaderUnderlay } from 'glugglugglug';
 
 const underlay = new ShaderUnderlay(engine);
 underlay.setEffect({
@@ -125,7 +125,7 @@ The callback is where per-frame uploads and draws belong. Construct it after `Sh
 framebuffer over that shader while keeping both passes below the sprite scene.
 
 ```ts
-import { RgbaTextureLayer } from 'glugglug';
+import { RgbaTextureLayer } from 'glugglugglug';
 
 const layer = new RgbaTextureLayer(engine);
 let texture = layer.uploadRgba8Texture(pixels, width, height);
@@ -149,7 +149,7 @@ it after overlays that should be included. Constructing another `postDraw` plugi
 processed result.
 
 ```ts
-import { PostProcess } from 'glugglug';
+import { PostProcess } from 'glugglugglug';
 
 const postProcess = new PostProcess(engine);
 postProcess.setEffect({
@@ -171,13 +171,13 @@ active effect, the hook returns before allocating capture storage or issuing any
 
 ## Optional drawing utilities
 
-`glugglug/utils` provides a CPU-only `DrawContext` for nested coordinate offsets. It wraps the structural
+`glugglugglug/utils` provides a CPU-only `DrawContext` for nested coordinate offsets. It wraps the structural
 `SpriteTarget` interface, so an `Engine`, a test recorder, or a future cache builder can receive the final numeric sprite
 submissions without importing utility code into the core renderer.
 
 ```ts
-import { Engine } from 'glugglug';
-import { DrawContext } from 'glugglug/utils';
+import { Engine } from 'glugglugglug';
+import { DrawContext } from 'glugglugglug/utils';
 
 const engine = new Engine(canvas);
 const draw = new DrawContext(engine);
@@ -207,6 +207,20 @@ npm run typecheck
 
 `npm pack` builds and packages only `dist/`, together with the package metadata and README. The repository's
 `project.json` is an optional adapter for consuming the same npm scripts from the parent Nx workspace.
+
+## Publishing
+
+The unscoped package is configured for public npm access. Authenticate with npm, inspect the exact archive, and then
+publish from a clean `main` checkout:
+
+```sh
+npm login
+npm publish --dry-run
+npm publish
+```
+
+`npm publish` runs formatting checks, typechecking, all unit tests, and a fresh production build before uploading.
+Publishing requires a version that does not already exist in the npm registry.
 
 ## Visual regression tests
 

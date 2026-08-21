@@ -2,9 +2,9 @@
 
 ## Package Scope & Layout
 
-- Parent-workspace path: `packages/editor/packages/glugglug`; source in `src/`, output in `dist/`.
-- Package and Nx project name: `glugglug`.
-- The package is maintained in the `glugglug` Git submodule even though consumers import `glugglug`.
+- Parent-workspace path: `packages/editor/packages/glugglugglug`; source in `src/`, output in `dist/`.
+- Published package and consumer import name: `glugglugglug`.
+- Repository, submodule directory, and parent Nx project name: `glugglugglug`.
 
 ## Build, Test, and Development
 

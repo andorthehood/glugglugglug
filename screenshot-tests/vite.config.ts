@@ -17,7 +17,7 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
-			glugglug: resolve(currentDirectory, '../dist'),
+			glugglugglug: resolve(currentDirectory, '../dist'),
 		},
 	},
 });
