@@ -1,5 +1,5 @@
 {
-	"name": "glugglug2",
+	"name": "glugglug",
 	"sourceRoot": "src",
 	"projectType": "library",
 	"targets": {
@@ -27,10 +27,10 @@
 		},
 		"test": {
 			"executor": "@nx/vitest:test",
-			"outputs": ["{workspaceRoot}/coverage/glugglug2"],
+			"outputs": ["{workspaceRoot}/coverage/glugglug"],
 			"options": {
 				"config": "{projectRoot}/vitest.config.ts",
-				"reportsDirectory": "{workspaceRoot}/coverage/glugglug2"
+				"reportsDirectory": "{workspaceRoot}/coverage/glugglug"
 			}
 		},
 		"test:screenshot": {

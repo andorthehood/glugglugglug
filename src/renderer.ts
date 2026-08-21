@@ -295,7 +295,7 @@ export class Renderer {
 	 */
 	private assertLive(): void {
 		if (this.destroyed) {
-			throw new Error('The glugglug2 renderer has been destroyed.');
+			throw new Error('The glugglug renderer has been destroyed.');
 		}
 	}
 }

@@ -1,4 +1,4 @@
-import { Engine, LineDrawer, PostProcess, RgbaTextureLayer, ShaderUnderlay } from 'glugglug2';
+import { Engine, LineDrawer, PostProcess, RgbaTextureLayer, ShaderUnderlay } from 'glugglug';
 
 /** Creates a three-sprite atlas with asymmetric patterns that expose incorrect source rectangles or orientation. */
 function createAtlas(): HTMLCanvasElement {

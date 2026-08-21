@@ -3,14 +3,14 @@
 ## Package Scope & Layout
 
 - Parent-workspace path: `packages/editor/packages/glugglug`; source in `src/`, output in `dist/`.
-- Package and Nx project name: `glugglug2`.
-- The package is maintained in the `glugglug` Git submodule even though consumers import `glugglug2`.
+- Package and Nx project name: `glugglug`.
+- The package is maintained in the `glugglug` Git submodule even though consumers import `glugglug`.
 
 ## Build, Test, and Development
 
-- From the parent workspace, use `npx nx run glugglug2:build|test|typecheck|lint`.
-- Run visual regressions with `npx nx run glugglug2:test:screenshot`.
-- Update intentional visual changes with `npx nx run glugglug2:test:screenshot:update`.
+- From the parent workspace, use `npx nx run glugglug:build|test|typecheck|lint`.
+- Run visual regressions with `npx nx run glugglug:test:screenshot`.
+- Update intentional visual changes with `npx nx run glugglug:test:screenshot:update`.
 
 ## Coding Style
 

@@ -18,7 +18,7 @@ export default defineConfig({
 		},
 	},
 	webServer: {
-		command: 'npx nx run glugglug2:dev:test',
+		command: 'npx nx run glugglug:dev:test',
 		port: 3003,
 		reuseExistingServer: !process.env.CI,
 		stdout: 'pipe',

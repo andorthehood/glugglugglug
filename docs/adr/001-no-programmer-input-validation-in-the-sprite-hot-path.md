@@ -6,7 +6,7 @@
 
 ## Context
 
-`glugglug2` is a performance-first WebGL2 sprite renderer. During each render cycle, callers may invoke `drawSprite()` many times to append position, size, and sprite-id data to one reusable instance buffer. Work performed by `drawSprite()` is multiplied by the number of sprites and frames, making it the package's primary CPU hot path. `renderFrame()` and its renderer `beginFrame()` and `flush()` phases also execute once per frame, so lifecycle checks there create recurring work even when the engine is used correctly.
+`glugglug` is a performance-first WebGL2 sprite renderer. During each render cycle, callers may invoke `drawSprite()` many times to append position, size, and sprite-id data to one reusable instance buffer. Work performed by `drawSprite()` is multiplied by the number of sprites and frames, making it the package's primary CPU hot path. `renderFrame()` and its renderer `beginFrame()` and `flush()` phases also execute once per frame, so lifecycle checks there create recurring work even when the engine is used correctly.
 
 The initial implementation performed programmer-input validation for every sprite. It checked engine and renderer lifecycle state, verified that calls occurred inside a render callback, checked whether the sprite identifier existed, and called `Number.isFinite()` for all four rectangle values. These checks provided friendlier errors, but repeated validation is not part of producing valid instance data and adds branches and function calls to every sprite submission.
 
@@ -60,7 +60,7 @@ TypeScript types, focused tests, atlas validation, and application-level validat
 - Each sprite submission and render cycle performs fewer branches and runtime checks.
 - The default and only drawing API is the performance-oriented path; callers do not need to opt into a separate unsafe variant.
 - Cold-path validation remains available where its cost is not multiplied by sprite count.
-- The implementation communicates that `glugglug2` is a low-level renderer rather than an input-sanitization boundary.
+- The implementation communicates that `glugglug` is a low-level renderer rather than an input-sanitization boundary.
 
 ### Negative
 
@@ -84,7 +84,7 @@ Rejected because it makes every valid sprite submission pay for diagnostics inte
 
 ### Provide separate checked and unchecked drawing methods
 
-Rejected because it expands the API, duplicates behavior, and makes the slower path appear to be the default or safer architectural choice. `glugglug2` is explicitly performance-first, so the primary drawing method should express that contract directly.
+Rejected because it expands the API, duplicates behavior, and makes the slower path appear to be the default or safer architectural choice. `glugglug` is explicitly performance-first, so the primary drawing method should express that contract directly.
 
 ### Enable validation only in development builds
 
@@ -92,4 +92,4 @@ Not adopted for the MVP. It would introduce build-mode behavior differences and 
 
 ## Reconsideration Triggers
 
-Revisit this decision if profiling shows validation has negligible cost at real editor sprite counts and invalid calls are a recurring source of expensive failures, or if `glugglug2` becomes a public trust boundary that routinely accepts unvalidated external data.
+Revisit this decision if profiling shows validation has negligible cost at real editor sprite counts and invalid calls are a recurring source of expensive failures, or if `glugglug` becomes a public trust boundary that routinely accepts unvalidated external data.

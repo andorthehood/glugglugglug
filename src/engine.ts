@@ -174,7 +174,7 @@ export class Engine {
 	/** Throws when a cold-path engine operation is attempted after destruction. */
 	private assertLive(): void {
 		if (this.destroyed) {
-			throw new Error('The glugglug2 engine has been destroyed.');
+			throw new Error('The glugglug engine has been destroyed.');
 		}
 	}
 }

@@ -1,9 +1,9 @@
-# glugglug2
+# glugglug
 
-`glugglug2` is a small immediate-mode WebGL2 sprite renderer. It keeps one sprite atlas in GPU memory and uploads one compact, ordered instance list per frame.
+`glugglug` is a small immediate-mode WebGL2 sprite renderer. It keeps one sprite atlas in GPU memory and uploads one compact, ordered instance list per frame.
 
 ```ts
-import { Engine, type SpriteLookup } from 'glugglug2';
+import { Engine, type SpriteLookup } from 'glugglug';
 
 const engine = new Engine(canvas);
 const lookup: SpriteLookup = {
@@ -73,7 +73,7 @@ uploads and draws all submitted lines in one instanced `postDraw` call, above ev
 thickness, and packed RGBA color; it does not use or modify the sprite atlas.
 
 ```ts
-import { Engine, LineDrawer } from 'glugglug2';
+import { Engine, LineDrawer } from 'glugglug';
 
 const engine = new Engine(canvas);
 const lines = new LineDrawer(engine);
@@ -99,7 +99,7 @@ top-left-origin `v_topLeftScreenCoord` varyings. Fragment shaders may optionally
 `u_resolution` in drawing-buffer pixels.
 
 ```ts
-import { ShaderUnderlay } from 'glugglug2';
+import { ShaderUnderlay } from 'glugglug';
 
 const underlay = new ShaderUnderlay(engine);
 underlay.setEffect({
@@ -125,7 +125,7 @@ The callback is where per-frame uploads and draws belong. Construct it after `Sh
 framebuffer over that shader while keeping both passes below the sprite scene.
 
 ```ts
-import { RgbaTextureLayer } from 'glugglug2';
+import { RgbaTextureLayer } from 'glugglug';
 
 const layer = new RgbaTextureLayer(engine);
 let texture = layer.uploadRgba8Texture(pixels, width, height);
@@ -149,7 +149,7 @@ it after overlays that should be included. Constructing another `postDraw` plugi
 processed result.
 
 ```ts
-import { PostProcess } from 'glugglug2';
+import { PostProcess } from 'glugglug';
 
 const postProcess = new PostProcess(engine);
 postProcess.setEffect({
@@ -171,13 +171,13 @@ active effect, the hook returns before allocating capture storage or issuing any
 
 ## Optional drawing utilities
 
-`glugglug2/utils` provides a CPU-only `DrawContext` for nested coordinate offsets. It wraps the structural
+`glugglug/utils` provides a CPU-only `DrawContext` for nested coordinate offsets. It wraps the structural
 `SpriteTarget` interface, so an `Engine`, a test recorder, or a future cache builder can receive the final numeric sprite
 submissions without importing utility code into the core renderer.
 
 ```ts
-import { Engine } from 'glugglug2';
-import { DrawContext } from 'glugglug2/utils';
+import { Engine } from 'glugglug';
+import { DrawContext } from 'glugglug/utils';
 
 const engine = new Engine(canvas);
 const draw = new DrawContext(engine);
@@ -200,6 +200,6 @@ alpha blending, instance-buffer growth, clearing between frames, shader and RGBA
 final GPU-copy post-process pass.
 
 ```sh
-npx nx run glugglug2:test:screenshot
-npx nx run glugglug2:test:screenshot:update
+npx nx run glugglug:test:screenshot
+npx nx run glugglug:test:screenshot:update
 ```
