@@ -229,8 +229,9 @@ describe('Engine', () => {
 		expect(webgl.viewport).toHaveBeenLastCalledWith(0, 0, 640, 360);
 	});
 
-	it('owns one requestAnimationFrame loop and destroys resources idempotently', () => {
-		const requestAnimationFrame = vi.fn(() => 23);
+	it('pauses and resumes its requestAnimationFrame loop idempotently', () => {
+		let nextAnimationFrameRequest = 22;
+		const requestAnimationFrame = vi.fn(() => ++nextAnimationFrameRequest);
 		const cancelAnimationFrame = vi.fn();
 		vi.stubGlobal('requestAnimationFrame', requestAnimationFrame);
 		vi.stubGlobal('cancelAnimationFrame', cancelAnimationFrame);
@@ -242,10 +243,21 @@ describe('Engine', () => {
 		expect(requestAnimationFrame).toHaveBeenCalledTimes(1);
 		expect(() => engine.render(callback)).toThrow('already running');
 
-		engine.destroy();
-		engine.destroy();
+		engine.pauseRendering();
+		engine.pauseRendering();
 		expect(cancelAnimationFrame).toHaveBeenCalledOnce();
 		expect(cancelAnimationFrame).toHaveBeenCalledWith(23);
+		expect(() => engine.render(callback)).toThrow('already running');
+
+		engine.resumeRendering();
+		engine.resumeRendering();
+		expect(callback).toHaveBeenCalledTimes(2);
+		expect(requestAnimationFrame).toHaveBeenCalledTimes(2);
+
+		engine.destroy();
+		engine.destroy();
+		expect(cancelAnimationFrame).toHaveBeenCalledTimes(2);
+		expect(cancelAnimationFrame).toHaveBeenLastCalledWith(24);
 		expect(webgl.deleteBuffer).toHaveBeenCalledOnce();
 		expect(webgl.deleteVertexArray).toHaveBeenCalledOnce();
 		expect(webgl.deleteProgram).toHaveBeenCalledOnce();

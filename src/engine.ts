@@ -33,6 +33,26 @@ export class Engine {
 	private frameOpen = false;
 	private continuousRendering = false;
 	private animationFrameRequest: number | null = null;
+	private renderCallback: RenderCallback | null = null;
+
+	/** Renders one loop iteration and schedules the next while the engine remains active. */
+	private readonly renderNextFrame = (): void => {
+		this.animationFrameRequest = null;
+		if (!this.continuousRendering || this.destroyed || !this.renderCallback) {
+			return;
+		}
+
+		try {
+			this.renderFrame(this.renderCallback);
+		} catch (error) {
+			this.continuousRendering = false;
+			throw error;
+		}
+
+		if (this.continuousRendering && !this.destroyed) {
+			this.animationFrameRequest = requestAnimationFrame(this.renderNextFrame);
+		}
+	};
 
 	/**
 	 * Creates a sprite engine for an HTML canvas.
@@ -67,31 +87,40 @@ export class Engine {
 	 */
 	render(callback: RenderCallback): void {
 		this.assertLive();
-		if (this.continuousRendering) {
+		if (this.renderCallback) {
 			throw new Error('The continuous render loop is already running.');
 		}
 
+		this.renderCallback = callback;
+		this.resumeRendering();
+	}
+
+	/** Stops the continuous render loop without releasing rendering resources. */
+	pauseRendering(): void {
+		this.assertLive();
+		if (!this.continuousRendering) {
+			return;
+		}
+
+		this.continuousRendering = false;
+		if (this.animationFrameRequest !== null) {
+			cancelAnimationFrame(this.animationFrameRequest);
+			this.animationFrameRequest = null;
+		}
+	}
+
+	/** Restarts a paused continuous render loop and renders its first frame immediately. */
+	resumeRendering(): void {
+		this.assertLive();
+		if (this.continuousRendering) {
+			return;
+		}
+		if (!this.renderCallback) {
+			throw new Error('The continuous render loop has not been initialized.');
+		}
+
 		this.continuousRendering = true;
-		/** Renders one loop iteration and schedules the next while the engine remains active. */
-		const renderNextFrame = (): void => {
-			if (!this.continuousRendering || this.destroyed) {
-				return;
-			}
-
-			try {
-				this.renderFrame(callback);
-			} catch (error) {
-				this.continuousRendering = false;
-				this.animationFrameRequest = null;
-				throw error;
-			}
-
-			if (this.continuousRendering && !this.destroyed) {
-				this.animationFrameRequest = requestAnimationFrame(renderNextFrame);
-			}
-		};
-
-		renderNextFrame();
+		this.renderNextFrame();
 	}
 
 	/**
@@ -168,6 +197,7 @@ export class Engine {
 			cancelAnimationFrame(this.animationFrameRequest);
 			this.animationFrameRequest = null;
 		}
+		this.renderCallback = null;
 		this.renderer.destroy();
 	}
 
