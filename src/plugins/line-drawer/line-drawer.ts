@@ -95,6 +95,16 @@ export class LineDrawer {
 		this.lines.append(x1, y1, x2, y2, thickness, color);
 	}
 
+	/** Releases retained dynamic GPU buffer storage while preserving the buffer object and shader state. */
+	releaseMemory(): void {
+		if (this.destroyed || this.gpuCapacity === 0) {
+			return;
+		}
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffer);
+		this.gl.bufferData(this.gl.ARRAY_BUFFER, 0, this.gl.DYNAMIC_DRAW);
+		this.gpuCapacity = 0;
+	}
+
 	/**
 	 * Detaches this plugin and releases every WebGL resource it owns.
 	 *

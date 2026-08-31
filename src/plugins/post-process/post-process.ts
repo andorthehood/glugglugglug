@@ -91,6 +91,17 @@ export class PostProcess {
 		this.resolutionLocation = null;
 	}
 
+	/** Releases the lazily recreated full-frame capture texture while retaining the active effect program. */
+	releaseMemory(): void {
+		if (!this.captureTexture) {
+			return;
+		}
+		this.gl.deleteTexture(this.captureTexture);
+		this.captureTexture = null;
+		this.captureWidth = 0;
+		this.captureHeight = 0;
+	}
+
 	/** Detaches the hook and releases every WebGL resource owned by this plugin. */
 	destroy(): void {
 		if (this.destroyed) {
@@ -99,10 +110,7 @@ export class PostProcess {
 		this.destroyed = true;
 		removeHook(this.hooks.postDraw, this.drawHook);
 		this.clearEffect();
-		if (this.captureTexture) {
-			this.gl.deleteTexture(this.captureTexture);
-			this.captureTexture = null;
-		}
+		this.releaseMemory();
 		deleteFullscreenGeometry(this.gl, this.geometry);
 	}
 

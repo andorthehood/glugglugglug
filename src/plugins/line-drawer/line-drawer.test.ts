@@ -50,6 +50,25 @@ describe('LineDrawer', () => {
 		expect(gl.drawArraysInstanced).not.toHaveBeenCalled();
 	});
 
+	it('releases dynamic buffer storage and reallocates it on the next non-empty frame', () => {
+		const { gl, hooks } = createHost();
+		const lines = new LineDrawer({ gl, hooks }, { initialCapacity: 2 });
+		gl.bufferData.mockClear();
+
+		lines.releaseMemory();
+		lines.releaseMemory();
+
+		expect(gl.bufferData).toHaveBeenCalledOnce();
+		expect(gl.bufferData).toHaveBeenCalledWith(gl.ARRAY_BUFFER, 0, gl.DYNAMIC_DRAW);
+
+		hooks.preDraw[0](gl);
+		lines.drawLine(0, 0, 10, 10, 1, [1, 1, 1, 1]);
+		hooks.postDraw[0](gl);
+
+		expect(gl.bufferData).toHaveBeenCalledTimes(2);
+		expect(gl.bufferData).toHaveBeenLastCalledWith(gl.ARRAY_BUFFER, 2 * LINE_INSTANCE_BYTE_STRIDE, gl.DYNAMIC_DRAW);
+	});
+
 	it('detaches and deletes only its own resources idempotently', () => {
 		const { gl, hooks } = createHost();
 		const lines = new LineDrawer({ gl, hooks });

@@ -86,6 +86,7 @@ export class RgbaTextureLayer {
 	private readonly textureLocation: WebGLUniformLocation;
 	private readonly alphaLocation: WebGLUniformLocation;
 	private readonly textures = new Set<RgbaTexture>();
+	private readonly releasedTextures = new WeakSet<RgbaTexture>();
 	private drawCallback: RgbaTextureLayerDrawCallback | null = null;
 	private destroyed = false;
 
@@ -154,8 +155,12 @@ export class RgbaTextureLayer {
 		const gl = this.gl;
 		const existing = options.texture;
 		const filter = options.filter ?? existing?.filter ?? 'nearest';
-		const texture = existing?.texture ?? requireResource(gl.createTexture(), 'RGBA8 layer texture');
-		const sizeChanged = !existing || existing.width !== width || existing.height !== height;
+		const existingTextureReleased = existing ? this.releasedTextures.delete(existing) : false;
+		const texture =
+			!existing || existingTextureReleased
+				? requireResource(gl.createTexture(), 'RGBA8 layer texture')
+				: existing.texture;
+		const sizeChanged = !existing || existingTextureReleased || existing.width !== width || existing.height !== height;
 
 		gl.activeTexture(gl.TEXTURE0);
 		gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -171,6 +176,7 @@ export class RgbaTextureLayer {
 		}
 
 		if (existing) {
+			existing.texture = texture;
 			existing.width = width;
 			existing.height = height;
 			existing.filter = filter;
@@ -219,7 +225,19 @@ export class RgbaTextureLayer {
 	 */
 	deleteTexture(texture: RgbaTexture): void {
 		if (this.textures.delete(texture)) {
-			this.gl.deleteTexture(texture.texture);
+			if (!this.releasedTextures.delete(texture)) {
+				this.gl.deleteTexture(texture.texture);
+			}
+		}
+	}
+
+	/** Releases every uploaded texture while keeping handles valid for lazy reallocation on their next upload. */
+	releaseMemory(): void {
+		for (const texture of this.textures) {
+			if (!this.releasedTextures.has(texture)) {
+				this.gl.deleteTexture(texture.texture);
+				this.releasedTextures.add(texture);
+			}
 		}
 	}
 
@@ -231,7 +249,9 @@ export class RgbaTextureLayer {
 		this.destroyed = true;
 		removeHook(this.hooks[this.phase], this.drawHook);
 		for (const texture of this.textures) {
-			this.gl.deleteTexture(texture.texture);
+			if (!this.releasedTextures.delete(texture)) {
+				this.gl.deleteTexture(texture.texture);
+			}
 		}
 		this.textures.clear();
 		this.gl.deleteProgram(this.program);
