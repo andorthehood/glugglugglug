@@ -42,6 +42,30 @@ describe('RgbaTextureLayer', () => {
 		expect(gl.drawArrays).toHaveBeenCalledWith(gl.TRIANGLE_STRIP, 0, 4);
 	});
 
+	it('releases texture storage and recreates it through the existing handle on the next upload', () => {
+		const { gl } = createPluginHost();
+		const layer = new RgbaTextureLayer({ gl, hooks: { preDraw: [], postDraw: [] } });
+		const texture = layer.uploadRgba8Texture(new Uint8Array(4), 1, 1);
+		const originalGpuTexture = texture.texture;
+		gl.createTexture.mockClear();
+		gl.deleteTexture.mockClear();
+		gl.texImage2D.mockClear();
+		gl.texSubImage2D.mockClear();
+
+		layer.releaseMemory();
+		layer.releaseMemory();
+
+		expect(gl.deleteTexture).toHaveBeenCalledOnce();
+
+		const restored = layer.uploadRgba8Texture(new Uint8Array(4), 1, 1, { texture });
+
+		expect(restored).toBe(texture);
+		expect(texture.texture).not.toBe(originalGpuTexture);
+		expect(gl.createTexture).toHaveBeenCalledOnce();
+		expect(gl.texImage2D).toHaveBeenCalledOnce();
+		expect(gl.texSubImage2D).not.toHaveBeenCalled();
+	});
+
 	it('validates cold uploads and deletes owned resources idempotently', () => {
 		const { gl, hooks } = createPluginHost();
 		const layer = new RgbaTextureLayer({ gl, hooks });

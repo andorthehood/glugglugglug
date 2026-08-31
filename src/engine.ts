@@ -152,6 +152,24 @@ export class Engine {
 		this.renderer.resize(width, height);
 	}
 
+	/** Releases reloadable texture and dynamic-buffer storage while preserving the canvas drawing buffer. */
+	releaseRenderingMemory(): void {
+		this.assertLive();
+		if (this.frameOpen) {
+			throw new Error('Rendering memory cannot be released while a frame is being built.');
+		}
+		this.renderer.releaseMemory();
+	}
+
+	/** Restores renderer allocations previously discarded by `releaseRenderingMemory()`. */
+	restoreRenderingMemory(): void {
+		this.assertLive();
+		if (this.frameOpen) {
+			throw new Error('Rendering memory cannot be restored while a frame is being built.');
+		}
+		this.renderer.restoreMemory();
+	}
+
 	/**
 	 * Stops continuous rendering and releases every WebGL resource owned by the engine.
 	 *

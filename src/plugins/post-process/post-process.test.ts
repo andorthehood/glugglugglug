@@ -52,6 +52,26 @@ describe('PostProcess', () => {
 		expect(gl.useProgram).toHaveBeenLastCalledWith(activeProgram);
 	});
 
+	it('releases and lazily recreates the full-frame capture texture', () => {
+		const { gl, hooks } = createPluginHost();
+		const postProcess = new PostProcess({ gl, hooks });
+		postProcess.setEffect({ fragmentShader });
+		hooks.postDraw[0](gl);
+		gl.createTexture.mockClear();
+		gl.deleteTexture.mockClear();
+		gl.texImage2D.mockClear();
+
+		postProcess.releaseMemory();
+		postProcess.releaseMemory();
+
+		expect(gl.deleteTexture).toHaveBeenCalledOnce();
+
+		hooks.postDraw[0](gl);
+
+		expect(gl.createTexture).toHaveBeenCalledOnce();
+		expect(gl.texImage2D).toHaveBeenCalledOnce();
+	});
+
 	it('clears, detaches, and releases resources idempotently', () => {
 		const { gl, hooks } = createPluginHost();
 		const postProcess = new PostProcess({ gl, hooks });

@@ -26,9 +26,12 @@ export class Renderer {
 	private gpuCapacity: number;
 	private atlasTexture: WebGLTexture | null = null;
 	private lookupTexture: WebGLTexture | null = null;
+	private atlasImage: SpriteAtlasImage | null = null;
+	private atlasMetadata: Uint16Array | null = null;
 	private atlasWidth = 0;
 	private atlasHeight = 0;
 	private sprites = new Map<string, ResolvedSprite>();
+	private memoryReleased = false;
 	private destroyed = false;
 
 	/**
@@ -93,7 +96,54 @@ export class Renderer {
 		if (prepared.sprites.size > maxTextureSize) {
 			throw new RangeError(`The sprite lookup exceeds the GPU limit of ${maxTextureSize} entries.`);
 		}
+		this.atlasImage = image;
+		this.atlasMetadata = prepared.metadata;
+		this.atlasWidth = width;
+		this.atlasHeight = height;
+		this.sprites = prepared.sprites;
+		if (this.memoryReleased) {
+			return;
+		}
 
+		this.replaceAtlasTextures(image, prepared.metadata, prepared.sprites.size);
+	}
+
+	/** Releases reloadable texture and dynamic-buffer storage while retaining programs and CPU atlas metadata. */
+	releaseMemory(): void {
+		this.assertLive();
+		if (this.memoryReleased) {
+			return;
+		}
+
+		if (this.atlasTexture) {
+			this.gl.deleteTexture(this.atlasTexture);
+			this.atlasTexture = null;
+		}
+		if (this.lookupTexture) {
+			this.gl.deleteTexture(this.lookupTexture);
+			this.lookupTexture = null;
+		}
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.instanceBufferObject);
+		this.gl.bufferData(this.gl.ARRAY_BUFFER, 0, this.gl.DYNAMIC_DRAW);
+		this.gpuCapacity = 0;
+		this.memoryReleased = true;
+	}
+
+	/** Reuploads the retained sprite atlas after `releaseMemory()`; dynamic buffer storage is restored lazily. */
+	restoreMemory(): void {
+		this.assertLive();
+		if (!this.memoryReleased) {
+			return;
+		}
+
+		if (this.atlasImage && this.atlasMetadata) {
+			this.replaceAtlasTextures(this.atlasImage, this.atlasMetadata, this.sprites.size);
+		}
+		this.memoryReleased = false;
+	}
+
+	/** Atomically allocates and uploads both textures required by the sprite pass. */
+	private replaceAtlasTextures(image: SpriteAtlasImage, metadata: Uint16Array, spriteCount: number): void {
 		const nextAtlasTexture = requireResource(this.gl.createTexture(), 'atlas texture');
 		const nextLookupTexture = this.gl.createTexture();
 		if (!nextLookupTexture) {
@@ -103,7 +153,7 @@ export class Renderer {
 
 		try {
 			this.uploadAtlasTexture(nextAtlasTexture, image);
-			this.uploadLookupTexture(nextLookupTexture, prepared.metadata, prepared.sprites.size);
+			this.uploadLookupTexture(nextLookupTexture, metadata, spriteCount);
 		} catch (error) {
 			this.gl.deleteTexture(nextAtlasTexture);
 			this.gl.deleteTexture(nextLookupTexture);
@@ -119,9 +169,6 @@ export class Renderer {
 
 		this.atlasTexture = nextAtlasTexture;
 		this.lookupTexture = nextLookupTexture;
-		this.atlasWidth = width;
-		this.atlasHeight = height;
-		this.sprites = prepared.sprites;
 	}
 
 	/**
@@ -250,6 +297,8 @@ export class Renderer {
 		this.gl.deleteProgram(this.program);
 		this.atlasTexture = null;
 		this.lookupTexture = null;
+		this.atlasImage = null;
+		this.atlasMetadata = null;
 		this.sprites.clear();
 	}
 

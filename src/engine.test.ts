@@ -229,6 +229,36 @@ describe('Engine', () => {
 		expect(webgl.viewport).toHaveBeenLastCalledWith(0, 0, 640, 360);
 	});
 
+	it('releases and restores atlas textures while reallocating dynamic buffer storage lazily', () => {
+		const { canvas, engine, webgl } = createEngine(1);
+		engine.setSpriteAtlas(createAtlasImage(), {
+			player: { x: 0, y: 0, spriteWidth: 8, spriteHeight: 8 },
+		});
+		webgl.deleteTexture.mockClear();
+		webgl.bufferData.mockClear();
+		webgl.texImage2D.mockClear();
+
+		engine.releaseRenderingMemory();
+		engine.releaseRenderingMemory();
+
+		expect(webgl.deleteTexture).toHaveBeenCalledTimes(2);
+		expect(webgl.bufferData).toHaveBeenCalledOnce();
+		expect(webgl.bufferData).toHaveBeenCalledWith(webgl.ARRAY_BUFFER, 0, webgl.DYNAMIC_DRAW);
+		expect(canvas).toEqual(expect.objectContaining({ width: 320, height: 200 }));
+
+		engine.restoreRenderingMemory();
+		engine.restoreRenderingMemory();
+
+		expect(webgl.texImage2D).toHaveBeenCalledTimes(2);
+		expect(webgl.bufferData).toHaveBeenCalledOnce();
+
+		engine.renderFrame(() => engine.drawSprite(0, 0, 'player'));
+
+		expect(webgl.bufferData).toHaveBeenCalledTimes(2);
+		expect(webgl.bufferData).toHaveBeenLastCalledWith(webgl.ARRAY_BUFFER, 20, webgl.DYNAMIC_DRAW);
+		expect(webgl.drawArraysInstanced).toHaveBeenCalledOnce();
+	});
+
 	it('owns one requestAnimationFrame loop and destroys resources idempotently', () => {
 		const requestAnimationFrame = vi.fn(() => 23);
 		const cancelAnimationFrame = vi.fn();
