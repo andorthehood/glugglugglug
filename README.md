@@ -19,6 +19,9 @@ engine.render(() => {
 
 Each sprite instance contains `x`, `y`, `width`, `height`, and one dense numeric sprite id. Calls are drawn in append order with premultiplied-alpha blending. `renderFrame()` is available for one synchronous frame, `resize()` explicitly changes the canvas drawing buffer, and `destroy()` stops the render loop and releases owned WebGL resources.
 
+The drawing surface preserves transparent pixels so the WebGL output can composite over the canvas element's CSS
+background.
+
 `drawSprite()` and per-frame rendering are unchecked hot paths. Atlas validity is checked when `setSpriteAtlas()` runs,
 but sprite lifecycle, identifier, numeric-value, and per-frame destruction validation is intentionally omitted. Callers
 must use identifiers from the active atlas, finite rectangle values, and must not render after destroying the engine.

@@ -44,7 +44,7 @@ export class Renderer {
 		private readonly canvas: HTMLCanvasElement,
 		initialCapacity: number
 	) {
-		const gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
+		const gl = canvas.getContext('webgl2', { antialias: false, alpha: true });
 		if (!gl) {
 			throw new Error('WebGL2 is required but unavailable.');
 		}
@@ -76,7 +76,7 @@ export class Renderer {
 		gl.uniform1i(this.atlasSamplerLocation, 0);
 		gl.uniform1i(this.lookupSamplerLocation, 1);
 		gl.viewport(0, 0, canvas.width, canvas.height);
-		gl.clearColor(0, 0, 0, 1);
+		gl.clearColor(0, 0, 0, 0);
 		gl.enable(gl.BLEND);
 		gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 		gl.clear(gl.COLOR_BUFFER_BIT);
@@ -185,7 +185,7 @@ export class Renderer {
 		gl.viewport(0, 0, this.canvas.width, this.canvas.height);
 		gl.colorMask(true, true, true, true);
 		gl.disable(gl.SCISSOR_TEST);
-		gl.clearColor(0, 0, 0, 1);
+		gl.clearColor(0, 0, 0, 0);
 		gl.clear(gl.COLOR_BUFFER_BIT);
 	}
 

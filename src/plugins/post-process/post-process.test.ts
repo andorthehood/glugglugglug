@@ -26,7 +26,17 @@ describe('PostProcess', () => {
 		postProcess.setEffect({ fragmentShader });
 		hooks.postDraw[0](gl);
 		expect(gl.texImage2D).toHaveBeenCalledOnce();
-		expect(gl.texImage2D).toHaveBeenCalledWith(gl.TEXTURE_2D, 0, gl.RGB8, 320, 200, 0, gl.RGB, gl.UNSIGNED_BYTE, null);
+		expect(gl.texImage2D).toHaveBeenCalledWith(
+			gl.TEXTURE_2D,
+			0,
+			gl.RGBA8,
+			320,
+			200,
+			0,
+			gl.RGBA,
+			gl.UNSIGNED_BYTE,
+			null
+		);
 		expect(gl.copyTexSubImage2D).toHaveBeenCalledWith(gl.TEXTURE_2D, 0, 0, 0, 0, 0, 320, 200);
 		expect(gl.uniform1i).toHaveBeenCalledWith(expect.objectContaining({ name: 'u_renderTexture' }), 0);
 		expect(gl.uniform2f).toHaveBeenCalledWith(expect.objectContaining({ name: 'u_resolution' }), 320, 200);
