@@ -116,7 +116,15 @@ describe('Engine', () => {
 		expect(webgl.viewport).toHaveBeenLastCalledWith(0, 0, 320, 200);
 		expect(webgl.colorMask).toHaveBeenLastCalledWith(true, true, true, true);
 		expect(webgl.disable).toHaveBeenLastCalledWith(webgl.SCISSOR_TEST);
-		expect(webgl.clearColor).toHaveBeenLastCalledWith(0, 0, 0, 1);
+		expect(webgl.clearColor).toHaveBeenLastCalledWith(0, 0, 0, 0);
+	});
+
+	it('preserves transparent pixels by default', () => {
+		const { canvas, engine, webgl } = createEngine();
+
+		expect(canvas.getContext).toHaveBeenCalledWith('webgl2', { antialias: false, alpha: true });
+		engine.renderFrame(() => undefined);
+		expect(webgl.clearColor).toHaveBeenLastCalledWith(0, 0, 0, 0);
 	});
 
 	it('uploads one ordered instance range and renders it with one instanced draw', () => {

@@ -164,9 +164,7 @@ export class PostProcess {
 		if (width !== this.captureWidth || height !== this.captureHeight) {
 			gl.activeTexture(gl.TEXTURE0);
 			gl.bindTexture(gl.TEXTURE_2D, this.captureTexture);
-			// The engine requests an opaque default framebuffer (`alpha: false`). Matching its RGB color layout avoids the
-			// format incompatibility that WebGL2 reports when copying that framebuffer into RGBA capture storage.
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, width, height, 0, gl.RGB, gl.UNSIGNED_BYTE, null);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 			this.captureWidth = width;
 			this.captureHeight = height;
 		}

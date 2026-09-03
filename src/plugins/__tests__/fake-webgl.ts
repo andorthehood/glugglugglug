@@ -44,8 +44,6 @@ export function createFakeWebGl() {
 		TEXTURE0: 0x84c0,
 		RGBA8: 0x8058,
 		RGBA: 0x1908,
-		RGB8: 0x8051,
-		RGB: 0x1907,
 		TEXTURE_MIN_FILTER: 0x2801,
 		TEXTURE_MAG_FILTER: 0x2800,
 		TEXTURE_WRAP_S: 0x2802,
