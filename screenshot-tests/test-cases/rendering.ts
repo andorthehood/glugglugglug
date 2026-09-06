@@ -1,4 +1,4 @@
-import { Engine, LineDrawer, PostProcess, RgbaTextureLayer, ShaderUnderlay } from 'glugglugglug';
+import { Engine, LineDrawer, RgbaTextureLayer } from 'glugglugglug';
 
 /** Creates a three-sprite atlas with asymmetric patterns that expose incorrect source rectangles or orientation. */
 function createAtlas(): HTMLCanvasElement {
@@ -34,21 +34,6 @@ if (!canvas) {
 }
 
 const engine = new Engine(canvas, { initialCapacity: 2 });
-const underlay = new ShaderUnderlay(engine);
-underlay.setEffect({
-	fragmentShader: `#version 300 es
-		precision mediump float;
-
-		in vec2 v_topLeftScreenCoord;
-		out vec4 outColor;
-
-		void main() {
-			vec3 top = vec3(0.025, 0.055, 0.12);
-			vec3 bottom = vec3(0.10, 0.035, 0.13);
-			outColor = vec4(mix(top, bottom, v_topLeftScreenCoord.y), 1.0);
-		}
-	`,
-});
 
 const textureLayer = new RgbaTextureLayer(engine);
 const texture = textureLayer.uploadRgba8Texture(
@@ -68,23 +53,6 @@ textureLayer.setDrawCallback(layer => {
 });
 
 const lines = new LineDrawer(engine, { initialCapacity: 1 });
-const postProcess = new PostProcess(engine);
-postProcess.setEffect({
-	fragmentShader: `#version 300 es
-		precision mediump float;
-
-		in vec2 v_textureCoord;
-		in vec2 v_topLeftScreenCoord;
-		uniform sampler2D u_renderTexture;
-		out vec4 outColor;
-
-		void main() {
-			vec4 scene = texture(u_renderTexture, v_textureCoord);
-			float band = step(0.5, fract(v_topLeftScreenCoord.y * 12.0)) * 0.035;
-			outColor = vec4(clamp(scene.rgb * vec3(0.94, 1.0, 0.97) + vec3(0.0, 0.0, band), 0.0, 1.0), scene.a);
-		}
-	`,
-});
 engine.setSpriteAtlas(createAtlas(), {
 	red: { x: 0, y: 0, spriteWidth: 4, spriteHeight: 4 },
 	green: { x: 4, y: 0, spriteWidth: 4, spriteHeight: 4 },

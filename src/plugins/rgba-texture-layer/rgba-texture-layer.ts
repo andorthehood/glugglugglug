@@ -208,7 +208,7 @@ export class RgbaTextureLayer {
 		alpha: number = 1
 	): void {
 		const gl = this.gl;
-		prepareFullscreenPass(gl, this.program, this.geometry.vertexArray, true);
+		prepareFullscreenPass(gl, this.program, this.geometry.vertexArray);
 		gl.activeTexture(gl.TEXTURE0);
 		gl.bindTexture(gl.TEXTURE_2D, texture.texture);
 		gl.uniform1i(this.textureLocation, 0);

@@ -50,7 +50,7 @@ export function deleteFullscreenGeometry(gl: WebGL2RenderingContext, geometry: F
  * @param vertexSource - GLSL vertex shader source.
  * @param fragmentSource - GLSL fragment shader source.
  * @param label - Human-readable name used in allocation and linker errors.
- * @returns Linked WebGL program with `a_position` bound to attribute location zero.
+ * @returns Linked WebGL program using the attribute locations declared by the shaders.
  */
 export function createProgram(
 	gl: WebGL2RenderingContext,
@@ -66,7 +66,6 @@ export function createProgram(
 		program = requireResource(gl.createProgram(), `${label} shader program`);
 		gl.attachShader(program, vertexShader);
 		gl.attachShader(program, fragmentShader);
-		gl.bindAttribLocation(program, 0, 'a_position');
 		gl.linkProgram(program);
 		if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
 			throw new Error(gl.getProgramInfoLog(program) ?? `Could not link the ${label} shader program.`);
@@ -86,18 +85,16 @@ export function createProgram(
 }
 
 /**
- * Establishes the default-framebuffer state required by the RGBA texture-layer pass.
+ * Establishes the default-framebuffer state and premultiplied-alpha blending required by the RGBA texture-layer pass.
  *
  * @param gl - Shared WebGL2 context to configure.
  * @param program - Plugin shader program to bind.
  * @param vertexArray - Plugin fullscreen vertex array to bind.
- * @param blending - Whether premultiplied-alpha blending should be enabled.
  */
 export function prepareFullscreenPass(
 	gl: WebGL2RenderingContext,
 	program: WebGLProgram,
-	vertexArray: WebGLVertexArrayObject,
-	blending: boolean
+	vertexArray: WebGLVertexArrayObject
 ): void {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
@@ -109,13 +106,9 @@ export function prepareFullscreenPass(
 	gl.disable(gl.STENCIL_TEST);
 	gl.disable(gl.CULL_FACE);
 	gl.disable(gl.RASTERIZER_DISCARD);
-	if (blending) {
-		gl.enable(gl.BLEND);
-		gl.blendEquation(gl.FUNC_ADD);
-		gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-	} else {
-		gl.disable(gl.BLEND);
-	}
+	gl.enable(gl.BLEND);
+	gl.blendEquation(gl.FUNC_ADD);
+	gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 }
 
 /**

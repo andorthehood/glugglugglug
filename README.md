@@ -94,38 +94,11 @@ engine.destroy();
 Color components are normalized from `0` to `1`. Like sprite submission, `drawLine()` performs no hot-path validation;
 invalid coordinates, thicknesses, colors, or lifecycle calls are programmer errors with unspecified consequences.
 
-### Shader underlay plugin
-
-`ShaderUnderlay` renders one optional fullscreen shader in `preDraw`, below RGBA layers, sprites, and overlays registered
-after it. Its default vertex shader exposes the old glugglugglug-compatible `v_screenCoord`, `v_textureCoord`, and
-top-left-origin `v_topLeftScreenCoord` varyings. Fragment shaders may optionally declare `u_time` in seconds and
-`u_resolution` in drawing-buffer pixels.
-
-```ts
-import { ShaderUnderlay } from 'glugglugglug';
-
-const underlay = new ShaderUnderlay(engine);
-underlay.setEffect({
-	fragmentShader: `#version 300 es
-		precision mediump float;
-		in vec2 v_topLeftScreenCoord;
-		out vec4 outColor;
-		void main() {
-			outColor = vec4(v_topLeftScreenCoord, 0.2, 1.0);
-		}
-	`,
-});
-```
-
-Replacing an effect is atomic: a shader compilation or link failure leaves the previous effect active. `clearEffect()`
-removes the current effect without detaching the plugin; `destroy()` detaches it and releases its GPU resources.
-
 ### RGBA texture layer plugin
 
 `RgbaTextureLayer` uploads straight-alpha RGBA8 pixel arrays to reusable textures and draws them as top-left-origin
 rectangles. It has one fixed phase for its lifetime: `preDraw` by default, or `postDraw` when constructed as an overlay.
-The callback is where per-frame uploads and draws belong. Construct it after `ShaderUnderlay` to composite the RGBA
-framebuffer over that shader while keeping both passes below the sprite scene.
+The callback is where per-frame uploads and draws belong. The default phase places RGBA frames below the sprite scene.
 
 ```ts
 import { RgbaTextureLayer } from 'glugglugglug';
@@ -143,34 +116,6 @@ texture = layer.uploadRgba8Texture(nextPixels, width, height, { texture });
 
 Uploads validate dimensions and byte length because they are explicit cold-path operations. `drawTexture()` is an
 unchecked hot path. Filtering defaults to `nearest`; pass `{ filter: 'linear' }` when uploading to opt into interpolation.
-
-### Post-process plugin
-
-`PostProcess` installs an initially inactive final `postDraw` pass. An active effect performs one GPU framebuffer-to-
-texture copy per frame and draws that texture through `u_renderTexture`; it never reads pixels back to the CPU. Construct
-it after overlays that should be included. Constructing another `postDraw` plugin later places that plugin above the
-processed result.
-
-```ts
-import { PostProcess } from 'glugglugglug';
-
-const postProcess = new PostProcess(engine);
-postProcess.setEffect({
-	fragmentShader: `#version 300 es
-		precision mediump float;
-		in vec2 v_textureCoord;
-		uniform sampler2D u_renderTexture;
-		out vec4 outColor;
-		void main() {
-			vec4 color = texture(u_renderTexture, v_textureCoord);
-			outColor = vec4(color.rgb * vec3(1.0, 0.9, 0.8), color.a);
-		}
-	`,
-});
-```
-
-The default vertex shader has the same varying contract and optional standard uniforms as `ShaderUnderlay`. With no
-active effect, the hook returns before allocating capture storage or issuing any GPU work.
 
 ## Optional drawing utilities
 
@@ -228,8 +173,7 @@ Publishing requires a version that does not already exist in the npm registry.
 ## Visual regression tests
 
 The Chromium snapshot covers atlas selection, default and explicit sizing, positioning, insertion-order layering,
-alpha blending, instance-buffer growth, clearing between frames, shader and RGBA underlays, the line overlay, and a
-final GPU-copy post-process pass.
+alpha blending, instance-buffer growth, clearing between frames, RGBA underlays, and the line overlay.
 
 ```sh
 npm run test:screenshot

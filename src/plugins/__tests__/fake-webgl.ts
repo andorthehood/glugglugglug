@@ -13,9 +13,6 @@ export function createPluginHost(): { gl: FakeWebGl; hooks: RenderHooks } {
 /** Creates the WebGL2 surface shared by plugin unit tests. */
 export function createFakeWebGl() {
 	let resourceId = 0;
-	let shaderCompilationSucceeds = true;
-	let programLinkingSucceeds = true;
-	const missingUniforms = new Set<string>();
 	/** Returns one distinguishable fake GPU resource. */
 	const resource = (kind: string) => ({ kind, id: ++resourceId });
 	const gl = {
@@ -56,14 +53,13 @@ export function createFakeWebGl() {
 		createShader: vi.fn(() => resource('shader')),
 		shaderSource: vi.fn(),
 		compileShader: vi.fn(),
-		getShaderParameter: vi.fn(() => shaderCompilationSucceeds),
+		getShaderParameter: vi.fn(() => true),
 		getShaderInfoLog: vi.fn(() => 'shader compilation failed'),
 		deleteShader: vi.fn(),
 		createProgram: vi.fn(() => resource('program')),
 		attachShader: vi.fn(),
-		bindAttribLocation: vi.fn(),
 		linkProgram: vi.fn(),
-		getProgramParameter: vi.fn(() => programLinkingSucceeds),
+		getProgramParameter: vi.fn(() => true),
 		getProgramInfoLog: vi.fn(() => 'program linking failed'),
 		deleteProgram: vi.fn(),
 		createBuffer: vi.fn(() => resource('buffer')),
@@ -72,7 +68,7 @@ export function createFakeWebGl() {
 		deleteVertexArray: vi.fn(),
 		createTexture: vi.fn(() => resource('texture')),
 		deleteTexture: vi.fn(),
-		getUniformLocation: vi.fn((_program: unknown, name: string) => (missingUniforms.has(name) ? null : { name })),
+		getUniformLocation: vi.fn((_program: unknown, name: string) => ({ name })),
 		useProgram: vi.fn(),
 		bindVertexArray: vi.fn(),
 		bindBuffer: vi.fn(),
@@ -92,28 +88,11 @@ export function createFakeWebGl() {
 		texParameteri: vi.fn(),
 		texImage2D: vi.fn(),
 		texSubImage2D: vi.fn(),
-		copyTexSubImage2D: vi.fn(),
 		uniform1f: vi.fn(),
 		uniform1i: vi.fn(),
 		uniform2f: vi.fn(),
 		uniform4f: vi.fn(),
 		drawArrays: vi.fn(),
-		/** Controls subsequent fake shader compilation results. */
-		setShaderCompilationSucceeds(value: boolean): void {
-			shaderCompilationSucceeds = value;
-		},
-		/** Controls subsequent fake program link results. */
-		setProgramLinkingSucceeds(value: boolean): void {
-			programLinkingSucceeds = value;
-		},
-		/** Makes one named uniform optional lookup fail or resume succeeding. */
-		setUniformMissing(name: string, missing: boolean): void {
-			if (missing) {
-				missingUniforms.add(name);
-			} else {
-				missingUniforms.delete(name);
-			}
-		},
 	};
 	return gl as unknown as typeof gl & WebGL2RenderingContext;
 }
