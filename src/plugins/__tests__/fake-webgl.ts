@@ -58,7 +58,6 @@ export function createFakeWebGl() {
 		deleteShader: vi.fn(),
 		createProgram: vi.fn(() => resource('program')),
 		attachShader: vi.fn(),
-		bindAttribLocation: vi.fn(),
 		linkProgram: vi.fn(),
 		getProgramParameter: vi.fn(() => true),
 		getProgramInfoLog: vi.fn(() => 'program linking failed'),
