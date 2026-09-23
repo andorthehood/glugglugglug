@@ -1,4 +1,5 @@
 import { INSTANCE_BYTE_STRIDE, InstanceBuffer } from './instanceBuffer.ts';
+import { assertLive, requiresLive } from './lifecycle.ts';
 import { fragmentShaderSource, vertexShaderSource } from './shaders.ts';
 import { normalizeSpriteIdentifier, prepareSpriteAtlas, type ResolvedSprite } from './spriteAtlas.ts';
 
@@ -88,8 +89,8 @@ export class Renderer {
 	 * @param image - Image containing all sprites in the atlas.
 	 * @param lookup - Mapping from sprite identifiers to rectangles within the atlas image.
 	 */
+	@requiresLive
 	setSpriteAtlas(image: SpriteAtlasImage, lookup: SpriteLookup): void {
-		this.assertLive();
 		const { width, height } = image;
 		const prepared = prepareSpriteAtlas(lookup, width, height);
 		const maxTextureSize = Number(this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE));
@@ -109,8 +110,8 @@ export class Renderer {
 	}
 
 	/** Releases reloadable texture and dynamic-buffer storage while retaining programs and CPU atlas metadata. */
+	@requiresLive
 	releaseMemory(): void {
-		this.assertLive();
 		if (this.memoryReleased) {
 			return;
 		}
@@ -130,8 +131,8 @@ export class Renderer {
 	}
 
 	/** Reuploads the retained sprite atlas after `releaseMemory()`; dynamic buffer storage is restored lazily. */
+	@requiresLive
 	restoreMemory(): void {
-		this.assertLive();
 		if (!this.memoryReleased) {
 			return;
 		}
@@ -266,8 +267,8 @@ export class Renderer {
 	 * @param width - New canvas width in pixels.
 	 * @param height - New canvas height in pixels.
 	 */
+	@requiresLive
 	resize(width: number, height: number): void {
-		this.assertLive();
 		assertPositiveInteger(width, 'width');
 		assertPositiveInteger(height, 'height');
 		this.canvas.width = width;
@@ -342,7 +343,7 @@ export class Renderer {
 	/**
 	 * Throws when an operation requiring live WebGL resources is attempted after destruction.
 	 */
-	private assertLive(): void {
+	[assertLive](): void {
 		if (this.destroyed) {
 			throw new Error('The glugglugglug renderer has been destroyed.');
 		}

@@ -1,3 +1,4 @@
+import { assertLive, requiresLive } from './lifecycle.ts';
 import { Renderer } from './renderer.ts';
 
 import type {
@@ -52,8 +53,8 @@ export class Engine {
 	 * @param image - Loaded image, canvas, offscreen canvas, or bitmap containing every sprite.
 	 * @param lookup - Public identifiers and source rectangles for sprites in the image.
 	 */
+	@requiresLive
 	setSpriteAtlas(image: SpriteAtlasImage, lookup: SpriteLookup): void {
-		this.assertLive();
 		if (this.frameOpen) {
 			throw new Error('The sprite atlas cannot be replaced while a frame is being built.');
 		}
@@ -65,8 +66,8 @@ export class Engine {
 	 *
 	 * @param callback - Function that submits sprites for each frame.
 	 */
+	@requiresLive
 	render(callback: RenderCallback): void {
-		this.assertLive();
 		if (this.continuousRendering) {
 			throw new Error('The continuous render loop is already running.');
 		}
@@ -147,14 +148,14 @@ export class Engine {
 	 * @param width - New positive integer width in physical canvas pixels.
 	 * @param height - New positive integer height in physical canvas pixels.
 	 */
+	@requiresLive
 	resize(width: number, height: number): void {
-		this.assertLive();
 		this.renderer.resize(width, height);
 	}
 
 	/** Releases reloadable texture and dynamic-buffer storage while preserving the canvas drawing buffer. */
+	@requiresLive
 	releaseRenderingMemory(): void {
-		this.assertLive();
 		if (this.frameOpen) {
 			throw new Error('Rendering memory cannot be released while a frame is being built.');
 		}
@@ -162,8 +163,8 @@ export class Engine {
 	}
 
 	/** Restores renderer allocations previously discarded by `releaseRenderingMemory()`. */
+	@requiresLive
 	restoreRenderingMemory(): void {
-		this.assertLive();
 		if (this.frameOpen) {
 			throw new Error('Rendering memory cannot be restored while a frame is being built.');
 		}
@@ -190,7 +191,7 @@ export class Engine {
 	}
 
 	/** Throws when a cold-path engine operation is attempted after destruction. */
-	private assertLive(): void {
+	[assertLive](): void {
 		if (this.destroyed) {
 			throw new Error('The glugglugglug engine has been destroyed.');
 		}
