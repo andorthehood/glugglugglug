@@ -287,7 +287,11 @@ describe('Engine', () => {
 		expect(webgl.deleteBuffer).toHaveBeenCalledOnce();
 		expect(webgl.deleteVertexArray).toHaveBeenCalledOnce();
 		expect(webgl.deleteProgram).toHaveBeenCalledOnce();
+		expect(() => engine.setSpriteAtlas(createAtlasImage(), {})).toThrow('engine has been destroyed');
+		expect(() => engine.render(callback)).toThrow('engine has been destroyed');
 		expect(() => engine.resize(640, 360)).toThrow('engine has been destroyed');
+		expect(() => engine.releaseRenderingMemory()).toThrow('engine has been destroyed');
+		expect(() => engine.restoreRenderingMemory()).toThrow('engine has been destroyed');
 	});
 });
 
