@@ -1,7 +1,9 @@
+import type { SpriteId } from '../types.ts';
+
 /**
  * Minimal numeric sprite destination accepted by the optional drawing utilities.
  *
- * The core {@link Engine}, test recorders, and future cache builders can satisfy
+ * The core {@link Engine}, test recorders, and other numeric destinations can satisfy
  * this contract structurally without importing the utility layer.
  */
 export interface SpriteTarget {
@@ -14,5 +16,5 @@ export interface SpriteTarget {
 	 * @param width - Optional destination width; the target may use the sprite width when omitted.
 	 * @param height - Optional destination height; the target may use the sprite height when omitted.
 	 */
-	drawSprite(x: number, y: number, spriteId: number, width?: number, height?: number): void;
+	drawSprite(x: number, y: number, spriteId: SpriteId, width?: number, height?: number): void;
 }

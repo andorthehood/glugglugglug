@@ -1,12 +1,9 @@
-import type { SpriteCoordinates, SpriteIdentifier, SpriteLookup } from './types.ts';
-
-export type ResolvedSprite = SpriteCoordinates & {
-	id: number;
-};
+import type { SpriteAtlasResolver, SpriteCoordinates, SpriteId, SpriteIdentifier, SpriteLookup } from './types.ts';
 
 export type PreparedSpriteAtlas = {
 	metadata: Uint16Array;
-	sprites: Map<string, ResolvedSprite>;
+	resolver: SpriteAtlasResolver;
+	spriteCount: number;
 };
 
 const UINT16_MAX = 0xffff;
@@ -29,15 +26,27 @@ export function prepareSpriteAtlas(lookup: SpriteLookup, atlasWidth: number, atl
 	}
 
 	const metadata = new Uint16Array(entries.length * 4);
-	const sprites = new Map<string, ResolvedSprite>();
+	const spriteIds = new Map<string, SpriteId>();
 
 	for (const [id, [key, coordinates]] of entries.entries()) {
 		validateCoordinates(key, coordinates, atlasWidth, atlasHeight);
 		metadata.set([coordinates.x, coordinates.y, coordinates.spriteWidth, coordinates.spriteHeight], id * 4);
-		sprites.set(normalizeSpriteIdentifier(key), { ...coordinates, id });
+		spriteIds.set(normalizeSpriteIdentifier(key), id as SpriteId);
 	}
 
-	return { metadata, sprites };
+	return {
+		metadata,
+		spriteCount: entries.length,
+		resolver: {
+			resolveSprite(identifier) {
+				const spriteId = spriteIds.get(normalizeSpriteIdentifier(identifier));
+				if (spriteId === undefined) {
+					throw new Error(`Unknown sprite identifier ${JSON.stringify(identifier)}.`);
+				}
+				return spriteId;
+			},
+		},
+	};
 }
 
 /**

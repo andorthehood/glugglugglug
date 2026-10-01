@@ -18,8 +18,10 @@ export type {
 	RenderHooks,
 	RenderPluginHost,
 	SpriteAtlasImage,
+	SpriteAtlasResolver,
 	SpriteCoordinates,
 	SpriteFrameStats,
+	SpriteId,
 	SpriteIdentifier,
 	SpriteLookup,
 } from './types.ts';

@@ -1,10 +1,13 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import type { Engine } from '../engine.ts';
+import type { SpriteId } from '../types.ts';
 import { DrawContext } from './drawContext.ts';
 import type { SpriteTarget } from './types.ts';
 
 type SpriteCall = Parameters<SpriteTarget['drawSprite']>;
+
+const spriteId = (value: number) => value as SpriteId;
 
 /** Creates a structural sprite target that records every forwarded call. */
 function createRecorder(): { calls: SpriteCall[]; target: SpriteTarget } {
@@ -26,8 +29,8 @@ describe('DrawContext', () => {
 		const { calls, target } = createRecorder();
 		const draw = new DrawContext(target);
 
-		draw.drawSprite(3, 5, 7);
-		draw.drawSprite(11, 13, 17, 19, 23);
+		draw.drawSprite(3, 5, spriteId(7));
+		draw.drawSprite(11, 13, spriteId(17), 19, 23);
 
 		expect(calls).toEqual([
 			[3, 5, 7, undefined, undefined],
@@ -40,13 +43,13 @@ describe('DrawContext', () => {
 		const draw = new DrawContext(target);
 
 		draw.startGroup(10, 20);
-		draw.drawSprite(1, 2, 3);
+		draw.drawSprite(1, 2, spriteId(3));
 		draw.startGroup(100, 200);
-		draw.drawSprite(4, 5, 6);
+		draw.drawSprite(4, 5, spriteId(6));
 		draw.endGroup();
-		draw.drawSprite(7, 8, 9);
+		draw.drawSprite(7, 8, spriteId(9));
 		draw.endGroup();
-		draw.drawSprite(11, 12, 13);
+		draw.drawSprite(11, 12, spriteId(13));
 
 		expect(calls).toEqual([
 			[11, 22, 3, undefined, undefined],
@@ -62,7 +65,7 @@ describe('DrawContext', () => {
 
 		for (let frame = 0; frame < 2; frame += 1) {
 			draw.startGroup(frame * 10, frame * 20);
-			draw.drawSprite(1, 2, frame);
+			draw.drawSprite(1, 2, spriteId(frame));
 			draw.endGroup();
 		}
 

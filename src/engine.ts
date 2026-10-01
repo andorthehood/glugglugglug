@@ -6,8 +6,9 @@ import type {
 	RenderCallback,
 	RenderHooks,
 	SpriteAtlasImage,
+	SpriteAtlasResolver,
 	SpriteFrameStats,
-	SpriteIdentifier,
+	SpriteId,
 	SpriteLookup,
 } from './types.ts';
 
@@ -54,11 +55,11 @@ export class Engine {
 	 * @param lookup - Public identifiers and source rectangles for sprites in the image.
 	 */
 	@requiresLive
-	setSpriteAtlas(image: SpriteAtlasImage, lookup: SpriteLookup): void {
+	setSpriteAtlas(image: SpriteAtlasImage, lookup: SpriteLookup): SpriteAtlasResolver {
 		if (this.frameOpen) {
 			throw new Error('The sprite atlas cannot be replaced while a frame is being built.');
 		}
-		this.renderer.setSpriteAtlas(image, lookup);
+		return this.renderer.setSpriteAtlas(image, lookup);
 	}
 
 	/**
@@ -134,12 +135,12 @@ export class Engine {
 	 *
 	 * @param x - Destination X coordinate in canvas pixels.
 	 * @param y - Destination Y coordinate in canvas pixels.
-	 * @param sprite - Public string or number identifier from the active atlas.
+	 * @param spriteId - Dense identifier resolved from the active atlas setup.
 	 * @param width - Optional destination width; defaults to the sprite source width.
 	 * @param height - Optional destination height; defaults to the sprite source height.
 	 */
-	drawSprite(x: number, y: number, sprite: SpriteIdentifier, width?: number, height?: number): void {
-		this.renderer.drawSprite(x, y, sprite, width, height);
+	drawSprite(x: number, y: number, spriteId: SpriteId, width?: number, height?: number): void {
+		this.renderer.drawSprite(x, y, spriteId, width, height);
 	}
 
 	/**

@@ -11,9 +11,10 @@ afterEach(() => {
 describe('Engine', () => {
 	it('exposes its shared context and runs ordered hooks around sprite rendering', () => {
 		const { engine, webgl } = createEngine();
-		engine.setSpriteAtlas(createAtlasImage(), {
+		const atlas = engine.setSpriteAtlas(createAtlasImage(), {
 			player: { x: 0, y: 0, spriteWidth: 8, spriteHeight: 8 },
 		});
+		const player = atlas.resolveSprite('player');
 		const order: string[] = [];
 		engine.hooks.preDraw.push(gl => {
 			expect(gl).toBe(webgl);
@@ -28,7 +29,7 @@ describe('Engine', () => {
 		expect(engine.gl).toBe(webgl);
 		engine.renderFrame(() => {
 			order.push('application');
-			engine.drawSprite(0, 0, 'player');
+			engine.drawSprite(0, 0, player);
 		});
 
 		expect(order).toEqual(['pre-1', 'pre-2', 'application', 'post']);
@@ -62,9 +63,10 @@ describe('Engine', () => {
 
 	it('restores sprite-pass state after a pre-draw hook dirties the shared context', () => {
 		const { engine, webgl } = createEngine();
-		engine.setSpriteAtlas(createAtlasImage(), {
+		const atlas = engine.setSpriteAtlas(createAtlasImage(), {
 			player: { x: 0, y: 0, spriteWidth: 8, spriteHeight: 8 },
 		});
+		const player = atlas.resolveSprite('player');
 		const pluginFramebuffer = { plugin: true } as unknown as WebGLFramebuffer;
 		engine.hooks.preDraw.push(gl => {
 			gl.bindFramebuffer(gl.FRAMEBUFFER, pluginFramebuffer);
@@ -78,7 +80,7 @@ describe('Engine', () => {
 			gl.enable(gl.RASTERIZER_DISCARD);
 		});
 
-		engine.renderFrame(() => engine.drawSprite(0, 0, 'player'));
+		engine.renderFrame(() => engine.drawSprite(0, 0, player));
 
 		expect(webgl.bindFramebuffer).toHaveBeenLastCalledWith(webgl.FRAMEBUFFER, null);
 		expect(webgl.viewport).toHaveBeenLastCalledWith(0, 0, 320, 200);
@@ -129,17 +131,19 @@ describe('Engine', () => {
 
 	it('uploads one ordered instance range and renders it with one instanced draw', () => {
 		const { engine, webgl } = createEngine();
-		engine.setSpriteAtlas(createAtlasImage(), {
+		const atlas = engine.setSpriteAtlas(createAtlasImage(), {
 			player: { x: 0, y: 0, spriteWidth: 8, spriteHeight: 16 },
 			enemy: { x: 8, y: 0, spriteWidth: 12, spriteHeight: 10 },
 		});
+		const player = atlas.resolveSprite('player');
+		const enemy = atlas.resolveSprite('enemy');
 		webgl.bufferSubData.mockClear();
 		webgl.drawArraysInstanced.mockClear();
 		webgl.texImage2D.mockClear();
 
 		engine.renderFrame(() => {
-			engine.drawSprite(10, 20, 'player');
-			engine.drawSprite(30, 40, 'enemy', 50, 60);
+			engine.drawSprite(10, 20, player);
+			engine.drawSprite(30, 40, enemy, 50, 60);
 		});
 
 		expect(webgl.bufferSubData).toHaveBeenCalledTimes(1);
@@ -160,13 +164,14 @@ describe('Engine', () => {
 		const { engine } = createEngine();
 		const stats = engine.frameStats;
 		expect(stats).toEqual({ spriteCount: 0, uploadedInstanceBytes: 0 });
-		engine.setSpriteAtlas(createAtlasImage(), {
+		const atlas = engine.setSpriteAtlas(createAtlasImage(), {
 			player: { x: 0, y: 0, spriteWidth: 8, spriteHeight: 8 },
 		});
+		const player = atlas.resolveSprite('player');
 
 		engine.renderFrame(() => {
-			engine.drawSprite(0, 0, 'player');
-			engine.drawSprite(10, 0, 'player');
+			engine.drawSprite(0, 0, player);
+			engine.drawSprite(10, 0, player);
 		});
 
 		expect(engine.frameStats).toBe(stats);
@@ -176,14 +181,16 @@ describe('Engine', () => {
 		expect(stats).toEqual({ spriteCount: 0, uploadedInstanceBytes: 0 });
 	});
 
-	it('accepts numeric sprite ids', () => {
+	it('resolves sparse numeric identifiers before drawing', () => {
 		const { engine, webgl } = createEngine();
-		engine.setSpriteAtlas(createAtlasImage(), {
+		const atlas = engine.setSpriteAtlas(createAtlasImage(), {
 			7: { x: 0, y: 0, spriteWidth: 4, spriteHeight: 5 },
 		});
+		const spriteId = atlas.resolveSprite(7);
+		expect(spriteId).toBe(0);
 
 		engine.renderFrame(() => {
-			engine.drawSprite(1, 2, 7);
+			engine.drawSprite(1, 2, spriteId);
 		});
 		expect(webgl.drawArraysInstanced).toHaveBeenLastCalledWith(webgl.TRIANGLE_STRIP, 0, 4, 1);
 	});
@@ -192,7 +199,8 @@ describe('Engine', () => {
 		const { engine } = createEngine();
 		const image = createAtlasImage();
 		const lookup = { player: { x: 0, y: 0, spriteWidth: 8, spriteHeight: 8 } };
-		engine.setSpriteAtlas(image, lookup);
+		const atlas = engine.setSpriteAtlas(image, lookup);
+		const player = atlas.resolveSprite('player');
 
 		expect(() =>
 			engine.renderFrame(() => {
@@ -200,19 +208,20 @@ describe('Engine', () => {
 			})
 		).toThrow('cannot be replaced while a frame is being built');
 
-		expect(() => engine.renderFrame(() => engine.drawSprite(0, 0, 'player'))).not.toThrow();
+		expect(() => engine.renderFrame(() => engine.drawSprite(0, 0, player))).not.toThrow();
 	});
 
 	it('grows and reuses the same GPU buffer object', () => {
 		const { engine, webgl } = createEngine(1);
-		engine.setSpriteAtlas(createAtlasImage(), {
+		const atlas = engine.setSpriteAtlas(createAtlasImage(), {
 			player: { x: 0, y: 0, spriteWidth: 8, spriteHeight: 8 },
 		});
+		const player = atlas.resolveSprite('player');
 		webgl.bufferData.mockClear();
 
 		engine.renderFrame(() => {
-			engine.drawSprite(0, 0, 'player');
-			engine.drawSprite(10, 0, 'player');
+			engine.drawSprite(0, 0, player);
+			engine.drawSprite(10, 0, player);
 		});
 
 		expect(webgl.createBuffer).toHaveBeenCalledTimes(1);
@@ -239,9 +248,10 @@ describe('Engine', () => {
 
 	it('releases and restores atlas textures while reallocating dynamic buffer storage lazily', () => {
 		const { canvas, engine, webgl } = createEngine(1);
-		engine.setSpriteAtlas(createAtlasImage(), {
+		const atlas = engine.setSpriteAtlas(createAtlasImage(), {
 			player: { x: 0, y: 0, spriteWidth: 8, spriteHeight: 8 },
 		});
+		const player = atlas.resolveSprite('player');
 		webgl.deleteTexture.mockClear();
 		webgl.bufferData.mockClear();
 		webgl.texImage2D.mockClear();
@@ -260,7 +270,7 @@ describe('Engine', () => {
 		expect(webgl.texImage2D).toHaveBeenCalledTimes(2);
 		expect(webgl.bufferData).toHaveBeenCalledOnce();
 
-		engine.renderFrame(() => engine.drawSprite(0, 0, 'player'));
+		engine.renderFrame(() => engine.drawSprite(0, 0, player));
 
 		expect(webgl.bufferData).toHaveBeenCalledTimes(2);
 		expect(webgl.bufferData).toHaveBeenLastCalledWith(webgl.ARRAY_BUFFER, 20, webgl.DYNAMIC_DRAW);

@@ -1,9 +1,9 @@
 import { INSTANCE_BYTE_STRIDE, InstanceBuffer } from './instanceBuffer.ts';
 import { assertLive, requiresLive } from './lifecycle.ts';
 import { fragmentShaderSource, vertexShaderSource } from './shaders.ts';
-import { normalizeSpriteIdentifier, prepareSpriteAtlas, type ResolvedSprite } from './spriteAtlas.ts';
+import { prepareSpriteAtlas } from './spriteAtlas.ts';
 
-import type { SpriteAtlasImage, SpriteIdentifier, SpriteLookup } from './types.ts';
+import type { SpriteAtlasImage, SpriteAtlasResolver, SpriteId, SpriteLookup } from './types.ts';
 
 /**
  * Owns the WebGL2 resources used to upload sprite instances and render them in a single instanced draw call.
@@ -31,7 +31,6 @@ export class Renderer {
 	private atlasMetadata: Uint16Array | null = null;
 	private atlasWidth = 0;
 	private atlasHeight = 0;
-	private sprites = new Map<string, ResolvedSprite>();
 	private memoryReleased = false;
 	private destroyed = false;
 
@@ -90,23 +89,23 @@ export class Renderer {
 	 * @param lookup - Mapping from sprite identifiers to rectangles within the atlas image.
 	 */
 	@requiresLive
-	setSpriteAtlas(image: SpriteAtlasImage, lookup: SpriteLookup): void {
+	setSpriteAtlas(image: SpriteAtlasImage, lookup: SpriteLookup): SpriteAtlasResolver {
 		const { width, height } = image;
 		const prepared = prepareSpriteAtlas(lookup, width, height);
 		const maxTextureSize = Number(this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE));
-		if (prepared.sprites.size > maxTextureSize) {
+		if (prepared.spriteCount > maxTextureSize) {
 			throw new RangeError(`The sprite lookup exceeds the GPU limit of ${maxTextureSize} entries.`);
 		}
 		this.atlasImage = image;
 		this.atlasMetadata = prepared.metadata;
 		this.atlasWidth = width;
 		this.atlasHeight = height;
-		this.sprites = prepared.sprites;
 		if (this.memoryReleased) {
-			return;
+			return prepared.resolver;
 		}
 
-		this.replaceAtlasTextures(image, prepared.metadata, prepared.sprites.size);
+		this.replaceAtlasTextures(image, prepared.metadata, prepared.spriteCount);
+		return prepared.resolver;
 	}
 
 	/** Releases reloadable texture and dynamic-buffer storage while retaining programs and CPU atlas metadata. */
@@ -138,7 +137,7 @@ export class Renderer {
 		}
 
 		if (this.atlasImage && this.atlasMetadata) {
-			this.replaceAtlasTextures(this.atlasImage, this.atlasMetadata, this.sprites.size);
+			this.replaceAtlasTextures(this.atlasImage, this.atlasMetadata, this.atlasMetadata.length / 4);
 		}
 		this.memoryReleased = false;
 	}
@@ -198,15 +197,15 @@ export class Renderer {
 	 *
 	 * @param x - Horizontal position of the sprite's top-left corner in canvas pixels.
 	 * @param y - Vertical position of the sprite's top-left corner in canvas pixels.
-	 * @param spriteIdentifier - Identifier associated with the sprite in the current atlas lookup.
+	 * @param spriteId - Dense identifier resolved from the current atlas setup.
 	 * @param width - Rendered width in pixels, or the atlas rectangle width when omitted.
 	 * @param height - Rendered height in pixels, or the atlas rectangle height when omitted.
 	 */
-	drawSprite(x: number, y: number, spriteIdentifier: SpriteIdentifier, width?: number, height?: number): void {
-		const sprite = this.sprites.get(normalizeSpriteIdentifier(spriteIdentifier))!;
-		const resolvedWidth = width ?? sprite.spriteWidth;
-		const resolvedHeight = height ?? sprite.spriteHeight;
-		this.instances.append(x, y, resolvedWidth, resolvedHeight, sprite.id);
+	drawSprite(x: number, y: number, spriteId: SpriteId, width?: number, height?: number): void {
+		const metadataOffset = spriteId * 4;
+		const resolvedWidth = width ?? this.atlasMetadata![metadataOffset + 2];
+		const resolvedHeight = height ?? this.atlasMetadata![metadataOffset + 3];
+		this.instances.append(x, y, resolvedWidth, resolvedHeight, spriteId);
 	}
 
 	/**
@@ -300,7 +299,6 @@ export class Renderer {
 		this.lookupTexture = null;
 		this.atlasImage = null;
 		this.atlasMetadata = null;
-		this.sprites.clear();
 	}
 
 	/**
