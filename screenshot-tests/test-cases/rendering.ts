@@ -53,25 +53,28 @@ textureLayer.setDrawCallback(layer => {
 });
 
 const lines = new LineDrawer(engine, { initialCapacity: 1 });
-engine.setSpriteAtlas(createAtlas(), {
+const atlas = engine.setSpriteAtlas(createAtlas(), {
 	red: { x: 0, y: 0, spriteWidth: 4, spriteHeight: 4 },
 	green: { x: 4, y: 0, spriteWidth: 4, spriteHeight: 4 },
 	7: { x: 8, y: 0, spriteWidth: 4, spriteHeight: 4 },
 });
+const red = atlas.resolveSprite('red');
+const green = atlas.resolveSprite('green');
+const yellow = atlas.resolveSprite(7);
 
 // This frame must be completely removed by the next renderFrame call.
 engine.renderFrame(() => {
-	engine.drawSprite(0, 0, 'red', canvas.width, canvas.height);
+	engine.drawSprite(0, 0, red, canvas.width, canvas.height);
 });
 
 engine.renderFrame(() => {
-	engine.drawSprite(4, 4, 'green');
-	engine.drawSprite(12, 12, 'red', 32, 24);
-	engine.drawSprite(56, 8, 'green', 40, 32);
-	engine.drawSprite(28, 48, 'red', 52, 36);
-	engine.drawSprite(52, 60, 'green', 52, 28);
-	engine.drawSprite(92, 44, 7, 40, 40);
-	engine.drawSprite(108, 36, 7, 40, 40);
+	engine.drawSprite(4, 4, green);
+	engine.drawSprite(12, 12, red, 32, 24);
+	engine.drawSprite(56, 8, green, 40, 32);
+	engine.drawSprite(28, 48, red, 52, 36);
+	engine.drawSprite(52, 60, green, 52, 28);
+	engine.drawSprite(92, 44, yellow, 40, 40);
+	engine.drawSprite(108, 36, yellow, 40, 40);
 	lines.drawLine(8, 8, 152, 88, 3, [0.9, 0.95, 1, 1]);
 	lines.drawLine(8, 88, 152, 8, 2, [0.15, 0.8, 1, 0.85]);
 });

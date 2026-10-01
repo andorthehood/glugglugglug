@@ -1,3 +1,4 @@
+import type { SpriteId } from '../types.ts';
 import type { SpriteTarget } from './types.ts';
 
 /**
@@ -16,7 +17,7 @@ export class DrawContext implements SpriteTarget {
 	/**
 	 * Creates a drawing context that forwards final sprite rectangles to a target.
 	 *
-	 * @param target - Engine, recorder, cache builder, or other numeric sprite destination.
+	 * @param target - Engine, recorder, or other numeric sprite destination.
 	 */
 	constructor(private readonly target: SpriteTarget) {}
 
@@ -56,7 +57,7 @@ export class DrawContext implements SpriteTarget {
 	 * @param width - Optional destination width forwarded unchanged to the target.
 	 * @param height - Optional destination height forwarded unchanged to the target.
 	 */
-	drawSprite(x: number, y: number, spriteId: number, width?: number, height?: number): void {
+	drawSprite(x: number, y: number, spriteId: SpriteId, width?: number, height?: number): void {
 		this.target.drawSprite(x + this.offsetX, y + this.offsetY, spriteId, width, height);
 	}
 }

@@ -20,19 +20,22 @@ that frame, is a programmer error with unspecified consequences.
 
 Invalid calls are programmer errors with unspecified consequences. The package does not guarantee a particular exception, diagnostic, recovery behavior, or rendered result for:
 
-- unknown or stale sprite identifiers;
+- unknown or stale dense sprite ids;
 - calls made outside the intended render callback;
 - calls made after engine destruction;
 - non-finite positions or dimensions;
 - otherwise malformed per-sprite values.
 
-Callers are responsible for supplying identifiers from the active atlas and valid finite rectangle values. When an application accepts untrusted or dynamically shaped input, it must validate or normalize that input before entering the sprite-submission loop.
+Callers are responsible for resolving public keys when the atlas is installed, supplying ids from the active atlas, and
+using valid finite rectangle values. When an application accepts untrusted or dynamically shaped input, it must validate
+or normalize that input before entering the sprite-submission loop.
 
 Validation remains appropriate on cold operations, including:
 
 - WebGL2 context and resource creation;
 - shader compilation and program linking;
 - atlas dimensions, sprite source rectangles, and lookup capacity during `setSpriteAtlas()`;
+- public string or numeric key resolution through the resolver returned by `setSpriteAtlas()`;
 - atlas replacement while a frame is being built;
 - one-time continuous render-loop startup;
 - explicit canvas resize dimensions;
@@ -40,12 +43,14 @@ Validation remains appropriate on cold operations, including:
 
 The sprite hot path still performs work required for rendering:
 
-- normalize and resolve the public sprite identifier;
-- resolve omitted destination dimensions from atlas metadata;
+- index dense atlas metadata with the already-resolved sprite id;
+- read omitted destination dimensions from that metadata;
 - ensure the reusable instance buffer has capacity;
 - write the five instance fields.
 
-Identifier lookup, default-size resolution, and buffer-capacity handling are rendering operations rather than programmer-input validation and therefore remain.
+Dense metadata lookup, default-size resolution, and buffer-capacity handling are rendering operations rather than
+programmer-input validation and therefore remain. Public-key normalization and map lookup are setup operations and do
+not run in `drawSprite()`.
 
 ## Rationale
 
@@ -72,7 +77,8 @@ TypeScript types, focused tests, atlas validation, and application-level validat
 ### Neutral
 
 - Buffer growth checks remain because capacity management is required for correct instance storage and reusable allocation behavior.
-- Public string sprite identifiers still require lookup and normalization; this decision removes validation, not necessary sprite resolution.
+- Public string and sparse numeric identifiers require lookup and normalization while the atlas is installed; drawing
+  uses only the resulting dense ids.
 - This decision applies to sprite submission and per-frame orchestration. It does not prohibit validation during setup,
   explicit configuration, resource cleanup, or one-time continuous-loop startup.
 

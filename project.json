@@ -3,6 +3,13 @@
 	"sourceRoot": "src",
 	"projectType": "library",
 	"targets": {
+		"benchmark:submission": {
+			"executor": "nx:run-commands",
+			"options": {
+				"command": "npm run benchmark:submission",
+				"cwd": "{projectRoot}"
+			}
+		},
 		"build": {
 			"executor": "nx:run-commands",
 			"outputs": ["{projectRoot}/dist"],

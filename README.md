@@ -10,21 +10,28 @@ const lookup: SpriteLookup = {
 	player: { x: 0, y: 0, spriteWidth: 16, spriteHeight: 16 },
 };
 
-engine.setSpriteAtlas(atlasImage, lookup);
+const atlas = engine.setSpriteAtlas(atlasImage, lookup);
+const player = atlas.resolveSprite('player');
 engine.render(() => {
-	engine.drawSprite(10, 20, 'player');
-	engine.drawSprite(40, 20, 'player', 32, 32);
+	engine.drawSprite(10, 20, player);
+	engine.drawSprite(40, 20, player, 32, 32);
 });
 ```
 
 Each sprite instance contains `x`, `y`, `width`, `height`, and one dense numeric sprite id. Calls are drawn in append order with premultiplied-alpha blending. `renderFrame()` is available for one synchronous frame, `resize()` explicitly changes the canvas drawing buffer, and `destroy()` stops the render loop and releases owned WebGL resources.
 
+`setSpriteAtlas()` validates and uploads the atlas, then returns its resolver. Resolve public string or numeric lookup keys
+once while installing application sprite tables and retain the resulting `SpriteId` values for drawing. Replacing the
+atlas invalidates ids from the previous resolver; rebuild application lookup tables from the new resolver before the next
+frame. Arbitrary numeric lookup keys are not dense ids and must also be resolved.
+
 The drawing surface preserves transparent pixels so the WebGL output can composite over the canvas element's CSS
 background.
 
-`drawSprite()` and per-frame rendering are unchecked hot paths. Atlas validity is checked when `setSpriteAtlas()` runs,
-but sprite lifecycle, identifier, numeric-value, and per-frame destruction validation is intentionally omitted. Callers
-must use identifiers from the active atlas, finite rectangle values, and must not render after destroying the engine.
+`drawSprite()` and per-frame rendering are unchecked hot paths. Atlas validity and public-key resolution are checked
+outside the render loop, but sprite lifecycle, dense-id, numeric-value, and per-frame destruction validation is
+intentionally omitted. Callers must use ids from the active atlas, finite rectangle values, and must not render after
+destroying the engine.
 Violations are programmer errors with unspecified consequences.
 
 See [ADR-001: Do Not Validate Programmer Input in Render Hot Paths](docs/adr/001-no-programmer-input-validation-in-the-sprite-hot-path.md) for the decision and its consequences.
@@ -80,9 +87,10 @@ import { Engine, LineDrawer } from 'glugglugglug';
 
 const engine = new Engine(canvas);
 const lines = new LineDrawer(engine);
+const panelSpriteId = engine.setSpriteAtlas(atlasImage, lookup).resolveSprite('panel');
 
 engine.renderFrame(() => {
-	engine.drawSprite(20, 20, 'panel', 120, 80);
+	engine.drawSprite(20, 20, panelSpriteId, 120, 80);
 	lines.drawLine(20, 20, 140, 100, 2, [1, 0.25, 0.1, 1]);
 });
 
@@ -120,7 +128,7 @@ unchecked hot path. Filtering defaults to `nearest`; pass `{ filter: 'linear' }`
 ## Optional drawing utilities
 
 `glugglugglug/utils` provides a CPU-only `DrawContext` for nested coordinate offsets. It wraps the structural
-`SpriteTarget` interface, so an `Engine`, a test recorder, or a future cache builder can receive the final numeric sprite
+`SpriteTarget` interface, so an `Engine`, a test recorder, or another numeric destination can receive the final sprite
 submissions without importing utility code into the core renderer.
 
 ```ts
@@ -129,6 +137,8 @@ import { DrawContext } from 'glugglugglug/utils';
 
 const engine = new Engine(canvas);
 const draw = new DrawContext(engine);
+const atlas = engine.setSpriteAtlas(atlasImage, lookup);
+const panelSpriteId = atlas.resolveSprite('panel');
 
 engine.renderFrame(() => {
 	draw.startGroup(panel.x, panel.y);

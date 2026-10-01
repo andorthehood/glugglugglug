@@ -14,15 +14,26 @@ describe('prepareSpriteAtlas', () => {
 		);
 
 		expect(Array.from(prepared.metadata)).toEqual([1, 2, 8, 16, 20, 4, 12, 10]);
-		expect(prepared.sprites.get('player')).toEqual({ x: 1, y: 2, spriteWidth: 8, spriteHeight: 16, id: 0 });
-		expect(prepared.sprites.get('enemy')?.id).toBe(1);
+		expect(prepared.spriteCount).toBe(2);
+		expect(prepared.resolver.resolveSprite('player')).toBe(0);
+		expect(prepared.resolver.resolveSprite('enemy')).toBe(1);
 	});
 
 	it('normalizes public numeric and string ids to the same lookup key', () => {
 		expect(normalizeSpriteIdentifier(42)).toBe('42');
 		expect(normalizeSpriteIdentifier('42')).toBe('42');
-		const prepared = prepareSpriteAtlas({ 42: { x: 0, y: 0, spriteWidth: 1, spriteHeight: 1 } }, 1, 1);
-		expect(prepared.sprites.get(normalizeSpriteIdentifier(42))?.id).toBe(0);
+		const prepared = prepareSpriteAtlas(
+			{
+				42: { x: 0, y: 0, spriteWidth: 1, spriteHeight: 1 },
+				player: { x: 1, y: 0, spriteWidth: 1, spriteHeight: 1 },
+			},
+			2,
+			1
+		);
+		expect(prepared.resolver.resolveSprite(42)).toBe(0);
+		expect(prepared.resolver.resolveSprite('42')).toBe(0);
+		expect(prepared.resolver.resolveSprite('player')).toBe(1);
+		expect(() => prepared.resolver.resolveSprite('missing')).toThrow('Unknown sprite identifier "missing"');
 	});
 
 	it('rejects empty, invalid, or out-of-bounds lookup entries', () => {

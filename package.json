@@ -42,6 +42,7 @@
     "access": "public"
   },
   "scripts": {
+    "benchmark:submission": "node benchmarks/sprite-submission.mjs",
     "build": "tsc",
     "check": "biome check --vcs-enabled=false .",
     "dev": "tsc --watch",
