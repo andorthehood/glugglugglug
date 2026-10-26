@@ -1,10 +1,20 @@
 import { Engine, LineDrawer, RgbaTextureLayer } from 'glugglugglug';
 
-/** Coverage-only tiles. Color accents are composed from shared masks at runtime. */
+/** A shared fill and two distinct asymmetric masks expose incorrect atlas selection or orientation. */
 function createAtlas() {
-	const data = new Uint8Array(12 * 4).fill(255);
-	for (let y = 1; y < 3; y++) for (let x = 9; x < 11; x++) data[y * 12 + x] = 0;
-	return { width: 12, height: 4, data };
+	return {
+		width: 9,
+		height: 4,
+		data: new Uint8Array(
+			[
+				// Each row contains the fill column, four stairs pixels, and four cutout pixels.
+				[255, 255, 0, 0, 0, 255, 255, 255, 0],
+				[0, 255, 255, 0, 0, 255, 0, 128, 255],
+				[0, 255, 255, 255, 0, 255, 0, 255, 255],
+				[0, 255, 255, 255, 255, 0, 0, 255, 255],
+			].flat()
+		),
+	};
 }
 
 const canvas = document.querySelector<HTMLCanvasElement>('#output');
@@ -13,9 +23,7 @@ if (!canvas) {
 }
 
 const engine = new Engine(canvas, { initialCapacity: 2 });
-engine.setPalette(
-	new Uint8Array([239, 68, 68, 255, 127, 29, 29, 255, 34, 197, 94, 255, 20, 83, 45, 255, 250, 204, 21, 153])
-);
+engine.setPalette(new Uint8Array([239, 68, 68, 255, 34, 197, 94, 255, 250, 204, 21, 153]));
 
 const textureLayer = new RgbaTextureLayer(engine);
 const texture = textureLayer.uploadRgba8Texture(
@@ -36,36 +44,27 @@ textureLayer.setDrawCallback(layer => {
 
 const lines = new LineDrawer(engine, { initialCapacity: 1 });
 const atlas = engine.setSpriteAtlas(createAtlas(), {
-	red: { x: 0, y: 0, spriteWidth: 4, spriteHeight: 4 },
-	green: { x: 4, y: 0, spriteWidth: 4, spriteHeight: 4 },
-	7: { x: 8, y: 0, spriteWidth: 4, spriteHeight: 4 },
+	fill: { x: 0, y: 0, spriteWidth: 1, spriteHeight: 1 },
+	stairs: { x: 1, y: 0, spriteWidth: 4, spriteHeight: 4 },
+	cutout: { x: 5, y: 0, spriteWidth: 4, spriteHeight: 4 },
 });
-const red = atlas.resolveSprite('red');
-const green = atlas.resolveSprite('green');
-const yellow = atlas.resolveSprite(7);
+const fill = atlas.resolveSprite('fill');
+const stairs = atlas.resolveSprite('stairs');
+const cutout = atlas.resolveSprite('cutout');
 
 // This frame must be completely removed by the next renderFrame call.
 engine.renderFrame(() => {
-	engine.drawSprite(0, 0, red, 0, canvas.width, canvas.height);
+	engine.drawSprite(0, 0, fill, 0, canvas.width, canvas.height);
 });
 
-function redTile(x: number, y: number, width = 4, height = 4) {
-	engine.drawSprite(x, y, red, 0, width, height);
-	engine.drawSprite(x, y, red, 1, width / 4, height / 4);
-	engine.drawSprite(x + (width * 3) / 4, y + (height * 3) / 4, red, 1, width / 4, height / 4);
-}
-function greenTile(x: number, y: number, width = 4, height = 4) {
-	engine.drawSprite(x, y, green, 2, width, height);
-	engine.drawSprite(x + width / 4, y + height / 4, green, 3, width / 2, height / 2);
-}
 engine.renderFrame(() => {
-	greenTile(4, 4);
-	redTile(12, 12, 32, 24);
-	greenTile(56, 8, 40, 32);
-	redTile(28, 48, 52, 36);
-	greenTile(52, 60, 52, 28);
-	engine.drawSprite(92, 44, yellow, 4, 40, 40);
-	engine.drawSprite(108, 36, yellow, 4, 40, 40);
+	engine.drawSprite(4, 4, stairs, 1);
+	engine.drawSprite(12, 12, fill, 0, 32, 24);
+	engine.drawSprite(56, 8, stairs, 1, 40, 32);
+	engine.drawSprite(28, 48, fill, 1, 52, 36);
+	engine.drawSprite(52, 60, stairs, 0, 52, 28);
+	engine.drawSprite(92, 44, cutout, 2, 40, 40);
+	engine.drawSprite(108, 36, cutout, 2, 40, 40);
 	lines.drawLine(8, 8, 152, 88, 3, [0.9, 0.95, 1, 1]);
 	lines.drawLine(8, 88, 152, 8, 2, [0.15, 0.8, 1, 0.85]);
 });
