@@ -62,7 +62,7 @@ export class Engine {
 		return this.renderer.setSpriteAtlas(image, lookup);
 	}
 
-	/** Replaces the active straight-alpha RGBA8 palette between frames. */
+	/** Replaces 1–256 straight-alpha RGBA8 colors between frames; GPU colors are prepared as premultiplied floats. */
 	@requiresLive
 	setPalette(colors: Uint8Array): void {
 		if (this.frameOpen) throw new Error('The palette cannot be replaced while a frame is being built.');
@@ -143,7 +143,7 @@ export class Engine {
 	 * @param x - Destination X coordinate in canvas pixels.
 	 * @param y - Destination Y coordinate in canvas pixels.
 	 * @param spriteId - Dense uint16 identifier resolved from the active atlas setup.
-	 * @param paletteIndex - Uint16 index into the active RGBA8 palette.
+	 * @param paletteIndex - Uint16 field selecting an active palette color, with indices in the 0–255 range.
 	 * @param width - Optional destination width; defaults to the sprite source width.
 	 * @param height - Optional destination height; defaults to the sprite source height.
 	 */

@@ -1,9 +1,13 @@
 import { INSTANCE_BYTE_STRIDE, InstanceBuffer } from './instanceBuffer.ts';
 import { assertLive, requiresLive } from './lifecycle.ts';
-import { fragmentShaderSource, vertexShaderSource } from './shaders.ts';
+import { fragmentShaderSource, PALETTE_CAPACITY, vertexShaderSource } from './shaders.ts';
 import { prepareSpriteAtlas } from './spriteAtlas.ts';
 
 import type { SpriteAtlasImage, SpriteAtlasResolver, SpriteId, SpriteLookup } from './types.ts';
+
+const PALETTE_BINDING = 0;
+
+type PreparedPalette = { bytes: Uint8Array; colors: Float32Array };
 
 /**
  * Owns the WebGL2 resources used to upload sprite instances and render them in a single instanced draw call.
@@ -24,9 +28,9 @@ export class Renderer {
 	private readonly atlasSizeLocation: WebGLUniformLocation;
 	private readonly atlasSamplerLocation: WebGLUniformLocation;
 	private readonly lookupSamplerLocation: WebGLUniformLocation;
-	private readonly paletteSamplerLocation: WebGLUniformLocation;
-	private paletteTexture: WebGLTexture | null = null;
-	private paletteData: Uint8Array | null = null;
+	private readonly paletteBlockIndex: number;
+	private paletteBuffer: WebGLBuffer | null = null;
+	private palette: PreparedPalette | null = null;
 	private gpuCapacity: number;
 	private atlasTexture: WebGLTexture | null = null;
 	private lookupTexture: WebGLTexture | null = null;
@@ -63,7 +67,7 @@ export class Renderer {
 		this.atlasSizeLocation = resources.atlasSizeLocation;
 		this.atlasSamplerLocation = resources.atlasSamplerLocation;
 		this.lookupSamplerLocation = resources.lookupSamplerLocation;
-		this.paletteSamplerLocation = resources.paletteSamplerLocation;
+		this.paletteBlockIndex = resources.paletteBlockIndex;
 
 		gl.useProgram(this.program);
 		gl.bindVertexArray(this.vertexArray);
@@ -79,7 +83,6 @@ export class Renderer {
 
 		gl.uniform1i(this.atlasSamplerLocation, 0);
 		gl.uniform1i(this.lookupSamplerLocation, 1);
-		gl.uniform1i(this.paletteSamplerLocation, 2);
 		gl.viewport(0, 0, canvas.width, canvas.height);
 		gl.clearColor(0, 0, 0, 0);
 		gl.enable(gl.BLEND);
@@ -116,42 +119,35 @@ export class Renderer {
 		return prepared.resolver;
 	}
 
-	/** Validates and retains a straight-alpha RGBA8 palette. Identical updates do not touch the GPU. */
+	/** Retains 1–256 straight-alpha RGBA8 entries and prepares premultiplied float32 colors once per update. */
 	@requiresLive
 	setPalette(colors: Uint8Array): void {
-		const count = colors.length / 4;
-		const limit = Math.min(0x10000, Number(this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE)));
-		if (!(colors instanceof Uint8Array) || !Number.isInteger(count) || count < 1 || count > limit) {
-			throw new RangeError(`The palette must contain 1 to ${limit} RGBA8 entries.`);
-		}
 		if (
-			this.paletteData?.length === colors.length &&
-			colors.every((value, index) => value === this.paletteData![index])
+			colors instanceof Uint8Array &&
+			this.palette?.bytes.length === colors.length &&
+			colors.every((value, index) => value === this.palette!.bytes[index])
 		)
 			return;
-		const retained = colors.slice();
-		if (!this.memoryReleased) this.replacePaletteTexture(retained);
-		this.paletteData = retained;
+		const nextPalette = preparePalette(colors);
+		if (!this.memoryReleased) this.replacePaletteBuffer(nextPalette.colors);
+		this.palette = nextPalette;
 	}
 
-	private replacePaletteTexture(colors: Uint8Array): void {
+	private replacePaletteBuffer(colors: Float32Array): void {
 		const gl = this.gl;
-		const texture = requireResource(gl.createTexture(), 'palette texture');
+		const buffer = requireResource(gl.createBuffer(), 'palette uniform buffer');
 		try {
-			gl.activeTexture(gl.TEXTURE2);
-			gl.bindTexture(gl.TEXTURE_2D, texture);
-			preparePixelUpload(gl);
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, colors.length / 4, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, colors);
-			configureTexture(gl);
+			gl.bindBuffer(gl.UNIFORM_BUFFER, buffer);
+			gl.bufferData(gl.UNIFORM_BUFFER, colors, gl.STATIC_DRAW);
 		} catch (error) {
-			gl.deleteTexture(texture);
+			gl.deleteBuffer(buffer);
 			throw error;
 		}
-		if (this.paletteTexture) gl.deleteTexture(this.paletteTexture);
-		this.paletteTexture = texture;
+		if (this.paletteBuffer) gl.deleteBuffer(this.paletteBuffer);
+		this.paletteBuffer = buffer;
 	}
 
-	/** Releases reloadable texture and dynamic-buffer storage while retaining programs and CPU atlas metadata. */
+	/** Releases reloadable textures, palette, and dynamic-buffer storage while retaining programs and CPU data. */
 	@requiresLive
 	releaseMemory(): void {
 		if (this.memoryReleased) {
@@ -166,15 +162,15 @@ export class Renderer {
 			this.gl.deleteTexture(this.lookupTexture);
 			this.lookupTexture = null;
 		}
-		if (this.paletteTexture) this.gl.deleteTexture(this.paletteTexture);
-		this.paletteTexture = null;
+		if (this.paletteBuffer) this.gl.deleteBuffer(this.paletteBuffer);
+		this.paletteBuffer = null;
 		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.instanceBufferObject);
 		this.gl.bufferData(this.gl.ARRAY_BUFFER, 0, this.gl.DYNAMIC_DRAW);
 		this.gpuCapacity = 0;
 		this.memoryReleased = true;
 	}
 
-	/** Reuploads the retained sprite atlas after `releaseMemory()`; dynamic buffer storage is restored lazily. */
+	/** Restores retained atlas and palette resources after `releaseMemory()`; instance storage is restored lazily. */
 	@requiresLive
 	restoreMemory(): void {
 		if (!this.memoryReleased) {
@@ -184,7 +180,7 @@ export class Renderer {
 		if (this.atlasImage && this.atlasMetadata) {
 			this.replaceAtlasTextures(this.atlasImage, this.atlasMetadata, this.atlasMetadata.length / 4);
 		}
-		if (this.paletteData) this.replacePaletteTexture(this.paletteData);
+		if (this.palette) this.replacePaletteBuffer(this.palette.colors);
 		this.memoryReleased = false;
 	}
 
@@ -244,7 +240,7 @@ export class Renderer {
 	 * @param x - Horizontal position of the sprite's top-left corner in canvas pixels.
 	 * @param y - Vertical position of the sprite's top-left corner in canvas pixels.
 	 * @param spriteId - Dense uint16 identifier resolved from the current atlas setup.
-	 * @param paletteIndex - Uint16 index into the active RGBA8 palette.
+	 * @param paletteIndex - Uint16 field selecting an active palette color, with indices in the 0–255 range.
 	 * @param width - Rendered width in pixels, or the atlas rectangle width when omitted.
 	 * @param height - Rendered height in pixels, or the atlas rectangle height when omitted.
 	 */
@@ -267,7 +263,7 @@ export class Renderer {
 		if (spriteCount === 0) {
 			return;
 		}
-		if (!this.atlasTexture || !this.lookupTexture || !this.paletteTexture) {
+		if (!this.atlasTexture || !this.lookupTexture || !this.paletteBuffer) {
 			throw new Error('A sprite mask atlas and palette must be set before drawing sprites.');
 		}
 
@@ -300,14 +296,12 @@ export class Renderer {
 		gl.bindTexture(gl.TEXTURE_2D, this.atlasTexture);
 		gl.activeTexture(gl.TEXTURE1);
 		gl.bindTexture(gl.TEXTURE_2D, this.lookupTexture);
-		gl.activeTexture(gl.TEXTURE2);
-		gl.bindTexture(gl.TEXTURE_2D, this.paletteTexture);
 		gl.bindSampler(0, null);
 		gl.bindSampler(1, null);
-		gl.bindSampler(2, null);
 		gl.uniform1i(this.atlasSamplerLocation, 0);
 		gl.uniform1i(this.lookupSamplerLocation, 1);
-		gl.uniform1i(this.paletteSamplerLocation, 2);
+		gl.uniformBlockBinding(this.program, this.paletteBlockIndex, PALETTE_BINDING);
+		gl.bindBufferBase(gl.UNIFORM_BUFFER, PALETTE_BINDING, this.paletteBuffer);
 		gl.uniform2f(this.resolutionLocation, this.canvas.width, this.canvas.height);
 		gl.uniform2f(this.atlasSizeLocation, this.atlasWidth, this.atlasHeight);
 		gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, spriteCount);
@@ -345,9 +339,9 @@ export class Renderer {
 		if (this.lookupTexture) {
 			this.gl.deleteTexture(this.lookupTexture);
 		}
-		if (this.paletteTexture) this.gl.deleteTexture(this.paletteTexture);
-		this.paletteTexture = null;
-		this.paletteData = null;
+		if (this.paletteBuffer) this.gl.deleteBuffer(this.paletteBuffer);
+		this.paletteBuffer = null;
+		this.palette = null;
 		this.gl.deleteBuffer(this.instanceBufferObject);
 		this.gl.deleteVertexArray(this.vertexArray);
 		this.gl.deleteProgram(this.program);
@@ -448,13 +442,17 @@ function createRendererResources(gl: WebGL2RenderingContext): {
 	atlasSizeLocation: WebGLUniformLocation;
 	atlasSamplerLocation: WebGLUniformLocation;
 	lookupSamplerLocation: WebGLUniformLocation;
-	paletteSamplerLocation: WebGLUniformLocation;
+	paletteBlockIndex: number;
 } {
 	const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
 	let instanceBuffer: WebGLBuffer | null = null;
 	let vertexArray: WebGLVertexArrayObject | null = null;
 
 	try {
+		const paletteBlockIndex = gl.getUniformBlockIndex(program, 'Palette');
+		if (paletteBlockIndex === gl.INVALID_INDEX) {
+			throw new Error('Could not find the Palette shader uniform block.');
+		}
 		instanceBuffer = requireResource(gl.createBuffer(), 'instance buffer');
 		vertexArray = requireResource(gl.createVertexArray(), 'vertex array');
 		return {
@@ -465,7 +463,7 @@ function createRendererResources(gl: WebGL2RenderingContext): {
 			atlasSizeLocation: requireUniform(gl, program, 'u_atlasSize'),
 			atlasSamplerLocation: requireUniform(gl, program, 'u_atlas'),
 			lookupSamplerLocation: requireUniform(gl, program, 'u_spriteRectangles'),
-			paletteSamplerLocation: requireUniform(gl, program, 'u_palette'),
+			paletteBlockIndex,
 		};
 	} catch (error) {
 		if (instanceBuffer) {
@@ -559,4 +557,25 @@ function configureTexture(gl: WebGL2RenderingContext): void {
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+}
+
+/** Match normalized RGBA8 shader inputs, then prepare a fully backed std140 vec4 array. */
+function preparePalette(bytes: Uint8Array): PreparedPalette {
+	if (
+		!(bytes instanceof Uint8Array) ||
+		bytes.length === 0 ||
+		bytes.length % 4 !== 0 ||
+		bytes.length / 4 > PALETTE_CAPACITY
+	) {
+		throw new RangeError(`The palette must contain 1 to ${PALETTE_CAPACITY} RGBA8 entries.`);
+	}
+	const colors = new Float32Array(PALETTE_CAPACITY * 4);
+	for (let offset = 0; offset < bytes.length; offset += 4) {
+		const alpha = Math.fround(bytes[offset + 3] / 255);
+		colors[offset] = Math.fround(bytes[offset] / 255) * alpha;
+		colors[offset + 1] = Math.fround(bytes[offset + 1] / 255) * alpha;
+		colors[offset + 2] = Math.fround(bytes[offset + 2] / 255) * alpha;
+		colors[offset + 3] = alpha;
+	}
+	return { bytes: bytes.slice(), colors };
 }
