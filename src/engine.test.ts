@@ -29,7 +29,7 @@ describe('Engine', () => {
 		expect(engine.gl).toBe(webgl);
 		engine.renderFrame(() => {
 			order.push('application');
-			engine.drawSprite(0, 0, player);
+			engine.drawSprite(0, 0, player, 0);
 		});
 
 		expect(order).toEqual(['pre-1', 'pre-2', 'application', 'post']);
@@ -80,7 +80,7 @@ describe('Engine', () => {
 			gl.enable(gl.RASTERIZER_DISCARD);
 		});
 
-		engine.renderFrame(() => engine.drawSprite(0, 0, player));
+		engine.renderFrame(() => engine.drawSprite(0, 0, player, 0));
 
 		expect(webgl.bindFramebuffer).toHaveBeenLastCalledWith(webgl.FRAMEBUFFER, null);
 		expect(webgl.viewport).toHaveBeenLastCalledWith(0, 0, 320, 200);
@@ -142,8 +142,8 @@ describe('Engine', () => {
 		webgl.texImage2D.mockClear();
 
 		engine.renderFrame(() => {
-			engine.drawSprite(10, 20, player);
-			engine.drawSprite(30, 40, enemy, 50, 60);
+			engine.drawSprite(10, 20, player, 0);
+			engine.drawSprite(30, 40, enemy, 0, 50, 60);
 		});
 
 		expect(webgl.bufferSubData).toHaveBeenCalledTimes(1);
@@ -170,8 +170,8 @@ describe('Engine', () => {
 		const player = atlas.resolveSprite('player');
 
 		engine.renderFrame(() => {
-			engine.drawSprite(0, 0, player);
-			engine.drawSprite(10, 0, player);
+			engine.drawSprite(0, 0, player, 0);
+			engine.drawSprite(10, 0, player, 0);
 		});
 
 		expect(engine.frameStats).toBe(stats);
@@ -190,7 +190,7 @@ describe('Engine', () => {
 		expect(spriteId).toBe(0);
 
 		engine.renderFrame(() => {
-			engine.drawSprite(1, 2, spriteId);
+			engine.drawSprite(1, 2, spriteId, 0);
 		});
 		expect(webgl.drawArraysInstanced).toHaveBeenLastCalledWith(webgl.TRIANGLE_STRIP, 0, 4, 1);
 	});
@@ -208,7 +208,7 @@ describe('Engine', () => {
 			})
 		).toThrow('cannot be replaced while a frame is being built');
 
-		expect(() => engine.renderFrame(() => engine.drawSprite(0, 0, player))).not.toThrow();
+		expect(() => engine.renderFrame(() => engine.drawSprite(0, 0, player, 0))).not.toThrow();
 	});
 
 	it('grows and reuses the same GPU buffer object', () => {
@@ -220,8 +220,8 @@ describe('Engine', () => {
 		webgl.bufferData.mockClear();
 
 		engine.renderFrame(() => {
-			engine.drawSprite(0, 0, player);
-			engine.drawSprite(10, 0, player);
+			engine.drawSprite(0, 0, player, 0);
+			engine.drawSprite(10, 0, player, 0);
 		});
 
 		expect(webgl.createBuffer).toHaveBeenCalledTimes(1);
@@ -259,7 +259,7 @@ describe('Engine', () => {
 		engine.releaseRenderingMemory();
 		engine.releaseRenderingMemory();
 
-		expect(webgl.deleteTexture).toHaveBeenCalledTimes(2);
+		expect(webgl.deleteTexture).toHaveBeenCalledTimes(3);
 		expect(webgl.bufferData).toHaveBeenCalledOnce();
 		expect(webgl.bufferData).toHaveBeenCalledWith(webgl.ARRAY_BUFFER, 0, webgl.DYNAMIC_DRAW);
 		expect(canvas).toEqual(expect.objectContaining({ width: 320, height: 200 }));
@@ -267,10 +267,10 @@ describe('Engine', () => {
 		engine.restoreRenderingMemory();
 		engine.restoreRenderingMemory();
 
-		expect(webgl.texImage2D).toHaveBeenCalledTimes(2);
+		expect(webgl.texImage2D).toHaveBeenCalledTimes(3);
 		expect(webgl.bufferData).toHaveBeenCalledOnce();
 
-		engine.renderFrame(() => engine.drawSprite(0, 0, player));
+		engine.renderFrame(() => engine.drawSprite(0, 0, player, 0));
 
 		expect(webgl.bufferData).toHaveBeenCalledTimes(2);
 		expect(webgl.bufferData).toHaveBeenLastCalledWith(webgl.ARRAY_BUFFER, 20, webgl.DYNAMIC_DRAW);
@@ -303,6 +303,92 @@ describe('Engine', () => {
 		expect(() => engine.releaseRenderingMemory()).toThrow('engine has been destroyed');
 		expect(() => engine.restoreRenderingMemory()).toThrow('engine has been destroyed');
 	});
+	it('uploads odd-width R8 coverage with explicit tightly packed pixel-transfer state', () => {
+		const { engine, webgl } = createEngine();
+		const pixels = new Uint8Array([0, 128, 255, 255, 128, 0]);
+		engine.setSpriteAtlas(
+			{ width: 3, height: 2, data: pixels },
+			{
+				mask: { x: 0, y: 0, spriteWidth: 3, spriteHeight: 2 },
+			}
+		);
+		expect(webgl.texImage2D).toHaveBeenCalledWith(
+			webgl.TEXTURE_2D,
+			0,
+			webgl.R8,
+			3,
+			2,
+			0,
+			webgl.RED,
+			webgl.UNSIGNED_BYTE,
+			pixels
+		);
+		expect(webgl.pixelStorei).toHaveBeenCalledWith(webgl.UNPACK_ALIGNMENT, 1);
+		expect(webgl.pixelStorei).toHaveBeenCalledWith(webgl.UNPACK_ROW_LENGTH, 0);
+		expect(webgl.bindBuffer).toHaveBeenCalledWith(webgl.PIXEL_UNPACK_BUFFER, null);
+	});
+
+	it('updates only the palette and skips equivalent palette uploads', () => {
+		const { engine, webgl } = createEngine();
+		const colors = new Uint8Array([255, 0, 0, 128, 0, 255, 0, 255]);
+		webgl.texImage2D.mockClear();
+		engine.setPalette(colors);
+		engine.setPalette(colors.slice());
+		expect(webgl.texImage2D).toHaveBeenCalledExactlyOnceWith(
+			webgl.TEXTURE_2D,
+			0,
+			webgl.RGBA8,
+			2,
+			1,
+			0,
+			webgl.RGBA,
+			webgl.UNSIGNED_BYTE,
+			colors
+		);
+		expect(() => engine.renderFrame(() => engine.setPalette(colors))).toThrow('cannot be replaced while a frame');
+	});
+
+	it('retains the latest palette while memory is released and owns its uploaded byte arrays', () => {
+		const { engine, webgl } = createEngine();
+		engine.releaseRenderingMemory();
+		webgl.texImage2D.mockClear();
+		const colors = new Uint8Array([42, 43, 44, 128]);
+		engine.setPalette(colors);
+		colors.fill(0);
+		expect(webgl.texImage2D).not.toHaveBeenCalled();
+		engine.restoreRenderingMemory();
+		const data = webgl.texImage2D.mock.calls[0][8] as Uint8Array;
+		expect([...data]).toEqual([42, 43, 44, 128]);
+	});
+
+	it('packs a separate palette index and resets sampler bindings after hooks', () => {
+		const { engine, webgl } = createEngine();
+		engine.setPalette(new Uint8Array([255, 255, 255, 255, 255, 0, 0, 128]));
+		const id = engine
+			.setSpriteAtlas(createAtlasImage(), {
+				mask: { x: 0, y: 0, spriteWidth: 8, spriteHeight: 8 },
+			})
+			.resolveSprite('mask');
+		engine.hooks.preDraw.push(gl => gl.bindSampler(2, {} as WebGLSampler));
+		engine.renderFrame(() => engine.drawSprite(1, 2, id, 1));
+		const bytes = webgl.bufferSubData.mock.calls[0][2] as Uint8Array;
+		expect([...new Uint16Array(bytes.buffer, bytes.byteOffset + 16, 2)]).toEqual([0, 1]);
+		expect(webgl.bindSampler).toHaveBeenLastCalledWith(2, null);
+		expect(engine.frameStats.uploadedInstanceBytes).toBe(20);
+	});
+
+	it('rejects malformed masks and palettes before replacing resources', () => {
+		const { engine, webgl } = createEngine();
+		expect(() => engine.setPalette(new Uint8Array(0))).toThrow('RGBA8 entries');
+		expect(() => engine.setPalette(new Uint8Array(5))).toThrow('RGBA8 entries');
+		expect(() => engine.setPalette(new Uint8Array(4097 * 4))).toThrow('RGBA8 entries');
+		webgl.getParameter.mockReturnValue(0x10000);
+		expect(() => engine.setPalette(new Uint8Array(0x10001 * 4))).toThrow('RGBA8 entries');
+
+		expect(() => engine.setSpriteAtlas({ width: 3, height: 2, data: new Uint8Array(5) }, {})).toThrow(
+			'one coverage byte'
+		);
+	});
 });
 
 function createEngine(initialCapacity = 4): {
@@ -316,11 +402,13 @@ function createEngine(initialCapacity = 4): {
 		height: 200,
 		getContext: vi.fn(() => webgl),
 	} as unknown as HTMLCanvasElement;
-	return { canvas, engine: new Engine(canvas, { initialCapacity }), webgl };
+	const engine = new Engine(canvas, { initialCapacity });
+	engine.setPalette(new Uint8Array([255, 255, 255, 255]));
+	return { canvas, engine, webgl };
 }
 
-function createAtlasImage(): HTMLCanvasElement {
-	return { width: 64, height: 64 } as HTMLCanvasElement;
+function createAtlasImage() {
+	return { width: 64, height: 64, data: new Uint8Array(64 * 64).fill(255) };
 }
 
 function createFakeWebGl() {
@@ -338,6 +426,17 @@ function createFakeWebGl() {
 		TEXTURE_2D: 0x0de1,
 		TEXTURE0: 0x84c0,
 		TEXTURE1: 0x84c1,
+		TEXTURE2: 0x84c2,
+		R8: 0x8229,
+		RED: 0x1903,
+		UNPACK_ALIGNMENT: 0x0cf5,
+		UNPACK_ROW_LENGTH: 0x0cf2,
+		UNPACK_SKIP_PIXELS: 0x0cf4,
+		UNPACK_SKIP_ROWS: 0x0cf3,
+		UNPACK_IMAGE_HEIGHT: 0x806e,
+		UNPACK_SKIP_IMAGES: 0x806d,
+		UNPACK_FLIP_Y_WEBGL: 0x9240,
+		PIXEL_UNPACK_BUFFER: 0x88ec,
 		RGBA8: 0x8058,
 		RGBA: 0x1908,
 		UNSIGNED_BYTE: 0x1401,
@@ -406,6 +505,7 @@ function createFakeWebGl() {
 		getParameter: vi.fn(() => 4_096),
 		activeTexture: vi.fn(),
 		bindTexture: vi.fn(),
+		bindSampler: vi.fn(),
 		pixelStorei: vi.fn(),
 		texImage2D: vi.fn(),
 		texParameteri: vi.fn(),

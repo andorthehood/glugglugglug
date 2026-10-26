@@ -3,13 +3,15 @@ export const vertexShaderSource = `#version 300 es
 	precision highp int;
 
 	layout(location = 0) in vec4 a_rectangle;
-	layout(location = 1) in uint a_spriteId;
+	layout(location = 1) in uvec2 a_spriteAndPalette;
 
 	uniform vec2 u_resolution;
 	uniform vec2 u_atlasSize;
 	uniform highp usampler2D u_spriteRectangles;
+	uniform sampler2D u_palette;
 
 	out vec2 v_textureCoordinate;
+	flat out vec4 v_color;
 
 	const vec2 CORNERS[4] = vec2[](
 		vec2(0.0, 0.0),
@@ -20,7 +22,9 @@ export const vertexShaderSource = `#version 300 es
 
 	void main() {
 		vec2 corner = CORNERS[gl_VertexID];
-		uvec4 spriteRectangle = texelFetch(u_spriteRectangles, ivec2(int(a_spriteId), 0), 0);
+		vec4 color = texelFetch(u_palette, ivec2(int(a_spriteAndPalette.y), 0), 0);
+		v_color = vec4(color.rgb * color.a, color.a);
+		uvec4 spriteRectangle = texelFetch(u_spriteRectangles, ivec2(int(a_spriteAndPalette.x), 0), 0);
 
 		vec2 pixelPosition = a_rectangle.xy + corner * a_rectangle.zw;
 		vec2 clipPosition = pixelPosition / u_resolution * 2.0 - 1.0;
@@ -35,11 +39,12 @@ export const fragmentShaderSource = `#version 300 es
 	precision mediump float;
 
 	in vec2 v_textureCoordinate;
+	flat in vec4 v_color;
 	uniform sampler2D u_atlas;
 
 	out vec4 outColor;
 
 	void main() {
-		outColor = texture(u_atlas, v_textureCoordinate);
+		outColor = v_color * texture(u_atlas, v_textureCoordinate).r;
 	}
 `;

@@ -54,10 +54,11 @@ export class DrawContext implements SpriteTarget {
 	 * @param x - Destination X coordinate relative to the current context offset.
 	 * @param y - Destination Y coordinate relative to the current context offset.
 	 * @param spriteId - Dense numeric identifier from the target's active atlas.
+	 * @param paletteIndex - Index into the target's current RGBA8 palette.
 	 * @param width - Optional destination width forwarded unchanged to the target.
 	 * @param height - Optional destination height forwarded unchanged to the target.
 	 */
-	drawSprite(x: number, y: number, spriteId: SpriteId, width?: number, height?: number): void {
-		this.target.drawSprite(x + this.offsetX, y + this.offsetY, spriteId, width, height);
+	drawSprite(x: number, y: number, spriteId: SpriteId, paletteIndex: number, width?: number, height?: number): void {
+		this.target.drawSprite(x + this.offsetX, y + this.offsetY, spriteId, paletteIndex, width, height);
 	}
 }
