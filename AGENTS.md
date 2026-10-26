@@ -17,8 +17,9 @@
 
 - Use TypeScript ES modules and keep the public renderer API browser-focused.
 - Use Biome as the fixer; it owns formatting and import organization.
-- Accept R8 byte-array masks and a separate RGBA8 palette. Keep the 20-byte float32/uint16 instance contract.
-- Restore palette resources and sampler bindings together with the atlas after memory release or render hooks.
+
+## Design Guidelines
+
 - Preserve the allocation-conscious, validation-free sprite hot path documented under `docs/adr/`.
 
 ## Testing

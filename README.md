@@ -1,6 +1,6 @@
 # glugglugglug
 
-`glugglugglug` is a small immediate-mode WebGL2 sprite renderer. It keeps an R8 coverage-mask atlas and an RGBA8 color palette in GPU memory and uploads one compact, ordered instance list per frame.
+`glugglugglug` is a small immediate-mode WebGL2 sprite renderer. It keeps an R8 coverage-mask atlas and a premultiplied float32 color palette in a GPU uniform buffer and uploads one compact, ordered instance list per frame.
 
 ```ts
 import { Engine, type SpriteLookup } from 'glugglugglug';
@@ -29,18 +29,23 @@ atlas invalidates ids from the previous resolver; rebuild application lookup tab
 frame. Arbitrary numeric lookup keys are not dense ids and must also be resolved.
 
 The atlas descriptor contains tightly packed, top-to-bottom `Uint8Array` coverage bytes, one per texel. The GPU samples
-its red channel. The palette contains straight-alpha RGBA8 entries; the vertex shader looks up the selected color and
-premultiplies it, then the fragment shader multiplies it by coverage. All colors share the same sprite batch.
+its red channel. `setPalette()` accepts 1–256 straight-alpha RGBA8 entries. On each changed upload, the renderer
+normalizes those bytes and premultiplies RGB by alpha on the CPU. The vertex shader indexes a `std140` uniform block;
+the fragment shader multiplies that prepared color by coverage. All colors share the same sprite batch.
+
+The GPU palette always occupies 4 KiB: 256 float32 `vec4` slots, with unused slots cleared. A 189-entry palette uses
+3,024 bytes of those slots and supplies 756 input bytes; the byte input format does not describe the GPU allocation.
 
 `setPalette(bytes)` replaces only color storage and skips identical updates. It can be called between frames without
 reinstalling the atlas or resolving sprite IDs again. Both resource setters retain private copies of their byte arrays.
-Atlas IDs and palette indices are limited to 16 bits; resource sizes must also fit the device's texture limits. Invalid
+Atlas IDs and instance palette fields retain their 16-bit representation; active palette indices must address one of
+the supplied 1–256 colors. Atlas and rectangle textures must fit the device's texture limits. Invalid
 per-draw IDs and indices are programmer errors and are not validated in the hot path.
 
 `releaseRenderingMemory()` releases the atlas, rectangle table, palette, and GPU instance storage. Resource setters
 can update retained data while released; `restoreRenderingMemory()` uploads the latest data. `destroy()` deletes all
-owned resources. Mask and palette uploads establish pixel-unpack state, and the sprite pass restores all three texture
-bindings and sampler bindings after trusted render hooks.
+owned resources. Atlas uploads establish pixel-unpack state. After trusted render hooks, the sprite pass restores the
+mask and rectangle texture/sampler bindings plus the palette uniform-block mapping and buffer binding at point 0.
 
 The drawing surface preserves transparent pixels so the WebGL output can composite over the canvas element's CSS
 background.

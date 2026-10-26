@@ -1,3 +1,5 @@
+export const PALETTE_CAPACITY = 256;
+
 export const vertexShaderSource = `#version 300 es
 	precision highp float;
 	precision highp int;
@@ -8,7 +10,9 @@ export const vertexShaderSource = `#version 300 es
 	uniform vec2 u_resolution;
 	uniform vec2 u_atlasSize;
 	uniform highp usampler2D u_spriteRectangles;
-	uniform sampler2D u_palette;
+	layout(std140) uniform Palette {
+		vec4 u_palette[${PALETTE_CAPACITY}];
+	};
 
 	out vec2 v_textureCoordinate;
 	flat out vec4 v_color;
@@ -22,8 +26,7 @@ export const vertexShaderSource = `#version 300 es
 
 	void main() {
 		vec2 corner = CORNERS[gl_VertexID];
-		vec4 color = texelFetch(u_palette, ivec2(int(a_spriteAndPalette.y), 0), 0);
-		v_color = vec4(color.rgb * color.a, color.a);
+		v_color = u_palette[a_spriteAndPalette.y];
 		uvec4 spriteRectangle = texelFetch(u_spriteRectangles, ivec2(int(a_spriteAndPalette.x), 0), 0);
 
 		vec2 pixelPosition = a_rectangle.xy + corner * a_rectangle.zw;

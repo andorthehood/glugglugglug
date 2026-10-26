@@ -224,7 +224,7 @@ describe('Engine', () => {
 			engine.drawSprite(10, 0, player, 0);
 		});
 
-		expect(webgl.createBuffer).toHaveBeenCalledTimes(1);
+		expect(webgl.createBuffer).toHaveBeenCalledTimes(2);
 		expect(webgl.bufferData).toHaveBeenCalledTimes(1);
 		expect(webgl.bufferData).toHaveBeenCalledWith(webgl.ARRAY_BUFFER, 40, webgl.DYNAMIC_DRAW);
 	});
@@ -246,7 +246,7 @@ describe('Engine', () => {
 		expect(webgl.viewport).toHaveBeenLastCalledWith(0, 0, 640, 360);
 	});
 
-	it('releases and restores atlas textures while reallocating dynamic buffer storage lazily', () => {
+	it('releases and restores atlas textures and the palette while reallocating instance storage lazily', () => {
 		const { canvas, engine, webgl } = createEngine(1);
 		const atlas = engine.setSpriteAtlas(createAtlasImage(), {
 			player: { x: 0, y: 0, spriteWidth: 8, spriteHeight: 8 },
@@ -259,7 +259,7 @@ describe('Engine', () => {
 		engine.releaseRenderingMemory();
 		engine.releaseRenderingMemory();
 
-		expect(webgl.deleteTexture).toHaveBeenCalledTimes(3);
+		expect(webgl.deleteTexture).toHaveBeenCalledTimes(2);
 		expect(webgl.bufferData).toHaveBeenCalledOnce();
 		expect(webgl.bufferData).toHaveBeenCalledWith(webgl.ARRAY_BUFFER, 0, webgl.DYNAMIC_DRAW);
 		expect(canvas).toEqual(expect.objectContaining({ width: 320, height: 200 }));
@@ -267,12 +267,17 @@ describe('Engine', () => {
 		engine.restoreRenderingMemory();
 		engine.restoreRenderingMemory();
 
-		expect(webgl.texImage2D).toHaveBeenCalledTimes(3);
-		expect(webgl.bufferData).toHaveBeenCalledOnce();
+		expect(webgl.texImage2D).toHaveBeenCalledTimes(2);
+		expect(webgl.bufferData).toHaveBeenCalledTimes(2);
+		expect(webgl.bufferData).toHaveBeenLastCalledWith(
+			webgl.UNIFORM_BUFFER,
+			expect.any(Float32Array),
+			webgl.STATIC_DRAW
+		);
 
 		engine.renderFrame(() => engine.drawSprite(0, 0, player, 0));
 
-		expect(webgl.bufferData).toHaveBeenCalledTimes(2);
+		expect(webgl.bufferData).toHaveBeenCalledTimes(3);
 		expect(webgl.bufferData).toHaveBeenLastCalledWith(webgl.ARRAY_BUFFER, 20, webgl.DYNAMIC_DRAW);
 		expect(webgl.drawArraysInstanced).toHaveBeenCalledOnce();
 	});
@@ -294,7 +299,7 @@ describe('Engine', () => {
 		engine.destroy();
 		expect(cancelAnimationFrame).toHaveBeenCalledOnce();
 		expect(cancelAnimationFrame).toHaveBeenCalledWith(23);
-		expect(webgl.deleteBuffer).toHaveBeenCalledOnce();
+		expect(webgl.deleteBuffer).toHaveBeenCalledTimes(2);
 		expect(webgl.deleteVertexArray).toHaveBeenCalledOnce();
 		expect(webgl.deleteProgram).toHaveBeenCalledOnce();
 		expect(() => engine.setSpriteAtlas(createAtlasImage(), {})).toThrow('engine has been destroyed');
@@ -328,66 +333,128 @@ describe('Engine', () => {
 		expect(webgl.bindBuffer).toHaveBeenCalledWith(webgl.PIXEL_UNPACK_BUFFER, null);
 	});
 
-	it('updates only the palette and skips equivalent palette uploads', () => {
+	it('prepares premultiplied float32 palette colors in a fully backed block and skips equivalent updates', () => {
 		const { engine, webgl } = createEngine();
-		const colors = new Uint8Array([255, 0, 0, 128, 0, 255, 0, 255]);
+		const colors = new Uint8Array([255, 100, 50, 128, 17, 33, 99, 255, 100, 150, 200, 0]);
+		webgl.bufferData.mockClear();
 		webgl.texImage2D.mockClear();
 		engine.setPalette(colors);
 		engine.setPalette(colors.slice());
-		expect(webgl.texImage2D).toHaveBeenCalledExactlyOnceWith(
-			webgl.TEXTURE_2D,
-			0,
-			webgl.RGBA8,
-			2,
-			1,
-			0,
-			webgl.RGBA,
-			webgl.UNSIGNED_BYTE,
-			colors
+		expect(webgl.bufferData).toHaveBeenCalledExactlyOnceWith(
+			webgl.UNIFORM_BUFFER,
+			expect.any(Float32Array),
+			webgl.STATIC_DRAW
 		);
+		const data = webgl.bufferData.mock.calls[0][1] as Float32Array;
+		expect(data.byteLength).toBe(4096);
+		expect(data[0]).toBe(Math.fround(128 / 255));
+		expect(data[1]).toBeCloseTo((100 / 255) * (128 / 255), 7);
+		expect(data[2]).toBeCloseTo((50 / 255) * (128 / 255), 7);
+		expect(data[3]).toBe(Math.fround(128 / 255));
+		expect([...data.slice(4, 8)]).toEqual([Math.fround(17 / 255), Math.fround(33 / 255), Math.fround(99 / 255), 1]);
+		expect([...data.slice(8)]).toEqual(new Array(1016).fill(0));
+		expect(webgl.texImage2D).not.toHaveBeenCalled();
 		expect(() => engine.renderFrame(() => engine.setPalette(colors))).toThrow('cannot be replaced while a frame');
 	});
 
-	it('retains the latest palette while memory is released and owns its uploaded byte arrays', () => {
+	it('accepts the last palette slot and clears unused slots when replacing a larger palette', () => {
+		const { engine, webgl } = createEngine();
+		const colors = new Uint8Array(256 * 4).fill(255);
+		webgl.bufferData.mockClear();
+		webgl.deleteBuffer.mockClear();
+		engine.setPalette(colors);
+		const full = webgl.bufferData.mock.calls[0][1] as Float32Array;
+		expect([...full.slice(-4)]).toEqual([1, 1, 1, 1]);
+		engine.setPalette(new Uint8Array([255, 0, 0, 255]));
+		const smaller = webgl.bufferData.mock.calls[1][1] as Float32Array;
+		expect(smaller.byteLength).toBe(4096);
+		expect([...smaller.slice(0, 4)]).toEqual([1, 0, 0, 1]);
+		expect(smaller.slice(4).every(value => value === 0)).toBe(true);
+		expect(webgl.deleteBuffer).toHaveBeenCalledTimes(2);
+	});
+
+	it('retains the latest palette while memory is released and owns its supplied data', () => {
 		const { engine, webgl } = createEngine();
 		engine.releaseRenderingMemory();
-		webgl.texImage2D.mockClear();
+		webgl.bufferData.mockClear();
 		const colors = new Uint8Array([42, 43, 44, 128]);
 		engine.setPalette(colors);
 		colors.fill(0);
-		expect(webgl.texImage2D).not.toHaveBeenCalled();
+		expect(webgl.bufferData).not.toHaveBeenCalled();
 		engine.restoreRenderingMemory();
-		const data = webgl.texImage2D.mock.calls[0][8] as Uint8Array;
-		expect([...data]).toEqual([42, 43, 44, 128]);
+		const data = webgl.bufferData.mock.calls[0][1] as Float32Array;
+		expect(data[0]).toBeCloseTo((42 / 255) * (128 / 255), 7);
+		expect(data[1]).toBeCloseTo((43 / 255) * (128 / 255), 7);
+		expect(data[2]).toBeCloseTo((44 / 255) * (128 / 255), 7);
+		expect(data[3]).toBe(Math.fround(128 / 255));
+		webgl.bufferData.mockClear();
+		engine.setPalette(new Uint8Array([42, 43, 44, 128]));
+		expect(webgl.bufferData).not.toHaveBeenCalled();
 	});
 
-	it('packs a separate palette index and resets sampler bindings after hooks', () => {
+	it.each(['allocation', 'upload'] as const)('preserves the installed palette after a failed %s', failure => {
+		const { engine, webgl } = createEngine();
+		const oldBuffer = webgl.createBuffer.mock.results.at(-1)!.value;
+		const id = engine
+			.setSpriteAtlas(createAtlasImage(), { fill: { x: 0, y: 0, spriteWidth: 1, spriteHeight: 1 } })
+			.resolveSprite('fill');
+		webgl.deleteBuffer.mockClear();
+		const colors = new Uint8Array([255, 0, 0, 128]);
+		if (failure === 'allocation') webgl.createBuffer.mockReturnValueOnce(null);
+		else
+			webgl.bufferData.mockImplementationOnce(() => {
+				throw new Error('upload failed');
+			});
+		expect(() => engine.setPalette(colors)).toThrow();
+		expect(webgl.deleteBuffer).not.toHaveBeenCalledWith(oldBuffer);
+		engine.renderFrame(() => engine.drawSprite(0, 0, id, 0));
+		expect(webgl.bindBufferBase).toHaveBeenLastCalledWith(webgl.UNIFORM_BUFFER, 0, oldBuffer);
+		engine.setPalette(colors);
+		expect(webgl.deleteBuffer).toHaveBeenCalledWith(oldBuffer);
+		engine.renderFrame(() => engine.drawSprite(0, 0, id, 0));
+		expect(webgl.bindBufferBase.mock.calls.at(-1)![2]).not.toBe(oldBuffer);
+	});
+
+	it('packs palette indices and restores uniform-block, buffer, and atlas sampler bindings after hooks', () => {
 		const { engine, webgl } = createEngine();
 		engine.setPalette(new Uint8Array([255, 255, 255, 255, 255, 0, 0, 128]));
+		const paletteBuffer = webgl.createBuffer.mock.results.at(-1)!.value;
 		const id = engine
-			.setSpriteAtlas(createAtlasImage(), {
-				mask: { x: 0, y: 0, spriteWidth: 8, spriteHeight: 8 },
-			})
+			.setSpriteAtlas(createAtlasImage(), { mask: { x: 0, y: 0, spriteWidth: 8, spriteHeight: 8 } })
 			.resolveSprite('mask');
-		engine.hooks.preDraw.push(gl => gl.bindSampler(2, {} as WebGLSampler));
+		engine.hooks.preDraw.push(gl => {
+			gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, {} as WebGLBuffer);
+			gl.uniformBlockBinding({} as WebGLProgram, 0, 3);
+			gl.bindSampler(1, {} as WebGLSampler);
+		});
 		engine.renderFrame(() => engine.drawSprite(1, 2, id, 1));
 		const bytes = webgl.bufferSubData.mock.calls[0][2] as Uint8Array;
 		expect([...new Uint16Array(bytes.buffer, bytes.byteOffset + 16, 2)]).toEqual([0, 1]);
-		expect(webgl.bindSampler).toHaveBeenLastCalledWith(2, null);
+		expect(webgl.uniformBlockBinding).toHaveBeenLastCalledWith(expect.anything(), 0, 0);
+		expect(webgl.bindBufferBase).toHaveBeenLastCalledWith(webgl.UNIFORM_BUFFER, 0, paletteBuffer);
+		expect(webgl.bindSampler).toHaveBeenLastCalledWith(1, null);
 		expect(engine.frameStats.uploadedInstanceBytes).toBe(20);
 	});
 
-	it('rejects malformed masks and palettes before replacing resources', () => {
+	it('rejects malformed masks and out-of-range palettes before replacing resources', () => {
 		const { engine, webgl } = createEngine();
-		expect(() => engine.setPalette(new Uint8Array(0))).toThrow('RGBA8 entries');
-		expect(() => engine.setPalette(new Uint8Array(5))).toThrow('RGBA8 entries');
-		expect(() => engine.setPalette(new Uint8Array(4097 * 4))).toThrow('RGBA8 entries');
-		webgl.getParameter.mockReturnValue(0x10000);
-		expect(() => engine.setPalette(new Uint8Array(0x10001 * 4))).toThrow('RGBA8 entries');
-
+		webgl.createBuffer.mockClear();
+		for (const size of [0, 5, 257 * 4]) {
+			expect(() => engine.setPalette(new Uint8Array(size))).toThrow('1 to 256 RGBA8 entries');
+		}
+		expect(webgl.createBuffer).not.toHaveBeenCalled();
 		expect(() => engine.setSpriteAtlas({ width: 3, height: 2, data: new Uint8Array(5) }, {})).toThrow(
 			'one coverage byte'
 		);
+	});
+
+	it('cleans up the shader program when the palette uniform block cannot be found', () => {
+		const webgl = createFakeWebGl();
+		webgl.getUniformBlockIndex.mockReturnValue(webgl.INVALID_INDEX);
+		const canvas = { getContext: () => webgl } as unknown as HTMLCanvasElement;
+		expect(() => new Engine(canvas)).toThrow('Palette shader uniform block');
+		expect(webgl.deleteProgram).toHaveBeenCalledOnce();
+		expect(webgl.createBuffer).not.toHaveBeenCalled();
 	});
 });
 
@@ -420,13 +487,15 @@ function createFakeWebGl() {
 		COMPILE_STATUS: 0x8b81,
 		LINK_STATUS: 0x8b82,
 		ARRAY_BUFFER: 0x8892,
+		UNIFORM_BUFFER: 0x8a11,
+		INVALID_INDEX: 0xffffffff,
+		STATIC_DRAW: 0x88e4,
 		DYNAMIC_DRAW: 0x88e8,
 		FLOAT: 0x1406,
 		UNSIGNED_INT: 0x1405,
 		TEXTURE_2D: 0x0de1,
 		TEXTURE0: 0x84c0,
 		TEXTURE1: 0x84c1,
-		TEXTURE2: 0x84c2,
 		R8: 0x8229,
 		RED: 0x1903,
 		UNPACK_ALIGNMENT: 0x0cf5,
@@ -437,8 +506,6 @@ function createFakeWebGl() {
 		UNPACK_SKIP_IMAGES: 0x806d,
 		UNPACK_FLIP_Y_WEBGL: 0x9240,
 		PIXEL_UNPACK_BUFFER: 0x88ec,
-		RGBA8: 0x8058,
-		RGBA: 0x1908,
 		UNSIGNED_BYTE: 0x1401,
 		UNPACK_PREMULTIPLY_ALPHA_WEBGL: 0x9241,
 		TEXTURE_MIN_FILTER: 0x2801,
@@ -481,6 +548,9 @@ function createFakeWebGl() {
 		deleteVertexArray: vi.fn(),
 		createTexture: vi.fn(() => resource('texture')),
 		deleteTexture: vi.fn(),
+		getUniformBlockIndex: vi.fn(() => 0),
+		uniformBlockBinding: vi.fn(),
+		bindBufferBase: vi.fn(),
 		getUniformLocation: vi.fn((_program: unknown, name: string) => ({ name })),
 		useProgram: vi.fn(),
 		bindVertexArray: vi.fn(),
