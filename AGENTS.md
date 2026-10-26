@@ -2,7 +2,7 @@
 
 ## Package Scope & Layout
 
-- Parent-workspace path: `packages/editor/packages/glugglugglug`; source in `src/`, output in `dist/`.
+- Parent-workspace path: `packages/editor/packages/editor-core/packages/web-ui/packages/glugglugglug`; source in `src/`, output in `dist/`.
 - Published package and consumer import name: `glugglugglug`.
 - Repository, submodule directory, and parent Nx project name: `glugglugglug`.
 
@@ -17,6 +17,8 @@
 
 - Use TypeScript ES modules and keep the public renderer API browser-focused.
 - Use Biome as the fixer; it owns formatting and import organization.
+- Accept R8 byte-array masks and a separate RGBA8 palette. Keep the 20-byte float32/uint16 instance contract.
+- Restore palette resources and sampler bindings together with the atlas after memory release or render hooks.
 - Preserve the allocation-conscious, validation-free sprite hot path documented under `docs/adr/`.
 
 ## Testing

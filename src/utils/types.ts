@@ -16,5 +16,5 @@ export interface SpriteTarget {
 	 * @param width - Optional destination width; the target may use the sprite width when omitted.
 	 * @param height - Optional destination height; the target may use the sprite height when omitted.
 	 */
-	drawSprite(x: number, y: number, spriteId: SpriteId, width?: number, height?: number): void;
+	drawSprite(x: number, y: number, spriteId: SpriteId, paletteIndex: number, width?: number, height?: number): void;
 }

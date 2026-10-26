@@ -5,12 +5,12 @@ const INSTANCE_WORD_STRIDE = INSTANCE_BYTE_STRIDE / Uint32Array.BYTES_PER_ELEMEN
  * Stores compact sprite instances in one reusable ArrayBuffer.
  *
  * Float and integer typed-array views share the same storage so each instance
- * occupies five 32-bit words: x, y, width, height, and sprite id.
+ * occupies five 32-bit words: x, y, width, height, and 16-bit sprite id and 16-bit palette index.
  */
 export class InstanceBuffer {
 	private storage: ArrayBuffer;
 	private floats: Float32Array;
-	private integers: Uint32Array;
+	private integers: Uint16Array;
 	private instanceCount = 0;
 
 	/**
@@ -22,7 +22,7 @@ export class InstanceBuffer {
 		assertPositiveInteger(initialCapacity, 'initialCapacity');
 		this.storage = new ArrayBuffer(initialCapacity * INSTANCE_BYTE_STRIDE);
 		this.floats = new Float32Array(this.storage);
-		this.integers = new Uint32Array(this.storage);
+		this.integers = new Uint16Array(this.storage);
 	}
 
 	/** @returns The number of instances that fit in the current allocation. */
@@ -52,9 +52,10 @@ export class InstanceBuffer {
 	 * @param y - Destination Y coordinate in canvas pixels.
 	 * @param width - Destination width in canvas pixels.
 	 * @param height - Destination height in canvas pixels.
-	 * @param spriteId - Dense numeric id used by the GPU atlas lookup.
+	 * @param spriteId - Dense uint16 id used by the GPU atlas lookup.
+	 * @param paletteIndex - Uint16 index into the active RGBA8 palette.
 	 */
-	append(x: number, y: number, width: number, height: number, spriteId: number): void {
+	append(x: number, y: number, width: number, height: number, spriteId: number, paletteIndex: number): void {
 		this.ensureCapacity(this.instanceCount + 1);
 
 		const offset = this.instanceCount * INSTANCE_WORD_STRIDE;
@@ -62,7 +63,8 @@ export class InstanceBuffer {
 		this.floats[offset + 1] = y;
 		this.floats[offset + 2] = width;
 		this.floats[offset + 3] = height;
-		this.integers[offset + 4] = spriteId;
+		this.integers[offset * 2 + 8] = spriteId;
+		this.integers[offset * 2 + 9] = paletteIndex;
 		this.instanceCount += 1;
 	}
 
@@ -94,7 +96,7 @@ export class InstanceBuffer {
 		new Uint8Array(nextStorage).set(new Uint8Array(this.storage, 0, this.usedByteLength));
 		this.storage = nextStorage;
 		this.floats = new Float32Array(nextStorage);
-		this.integers = new Uint32Array(nextStorage);
+		this.integers = new Uint16Array(nextStorage);
 	}
 }
 

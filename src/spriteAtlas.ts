@@ -21,6 +21,9 @@ export function prepareSpriteAtlas(lookup: SpriteLookup, atlasWidth: number, atl
 	assertAtlasDimension(atlasHeight, 'atlas height');
 
 	const entries = Object.entries(lookup);
+	if (entries.length > 0x10000) {
+		throw new RangeError('The sprite lookup exceeds the 16-bit sprite ID limit.');
+	}
 	if (entries.length === 0) {
 		throw new Error('The sprite lookup must contain at least one sprite.');
 	}

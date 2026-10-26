@@ -49,9 +49,9 @@ export class Engine {
 	}
 
 	/**
-	 * Atomically replaces the persistent atlas image and its sprite lookup.
+	 * Atomically replaces the persistent R8 mask atlas and its sprite lookup.
 	 *
-	 * @param image - Loaded image, canvas, offscreen canvas, or bitmap containing every sprite.
+	 * @param image - Tightly packed top-to-bottom coverage bytes and positive mask dimensions.
 	 * @param lookup - Public identifiers and source rectangles for sprites in the image.
 	 */
 	@requiresLive
@@ -60,6 +60,13 @@ export class Engine {
 			throw new Error('The sprite atlas cannot be replaced while a frame is being built.');
 		}
 		return this.renderer.setSpriteAtlas(image, lookup);
+	}
+
+	/** Replaces the active straight-alpha RGBA8 palette between frames. */
+	@requiresLive
+	setPalette(colors: Uint8Array): void {
+		if (this.frameOpen) throw new Error('The palette cannot be replaced while a frame is being built.');
+		this.renderer.setPalette(colors);
 	}
 
 	/**
@@ -135,12 +142,13 @@ export class Engine {
 	 *
 	 * @param x - Destination X coordinate in canvas pixels.
 	 * @param y - Destination Y coordinate in canvas pixels.
-	 * @param spriteId - Dense identifier resolved from the active atlas setup.
+	 * @param spriteId - Dense uint16 identifier resolved from the active atlas setup.
+	 * @param paletteIndex - Uint16 index into the active RGBA8 palette.
 	 * @param width - Optional destination width; defaults to the sprite source width.
 	 * @param height - Optional destination height; defaults to the sprite source height.
 	 */
-	drawSprite(x: number, y: number, spriteId: SpriteId, width?: number, height?: number): void {
-		this.renderer.drawSprite(x, y, spriteId, width, height);
+	drawSprite(x: number, y: number, spriteId: SpriteId, paletteIndex: number, width?: number, height?: number): void {
+		this.renderer.drawSprite(x, y, spriteId, paletteIndex, width, height);
 	}
 
 	/**

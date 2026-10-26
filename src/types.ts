@@ -20,7 +20,12 @@ export type SpriteCoordinates = {
 
 export type SpriteLookup = Record<SpriteIdentifier, SpriteCoordinates>;
 
-export type SpriteAtlasImage = HTMLImageElement | HTMLCanvasElement | OffscreenCanvas | ImageBitmap;
+/** Single-channel coverage pixels in top-to-bottom order. Each byte is normalized from 0 to 1 by the GPU. */
+export type SpriteAtlasImage = {
+	readonly width: number;
+	readonly height: number;
+	readonly data: Uint8Array;
+};
 
 export type EngineOptions = {
 	/** Initial number of sprite instances retained by the CPU and GPU buffers. */

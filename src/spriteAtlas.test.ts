@@ -46,3 +46,10 @@ describe('prepareSpriteAtlas', () => {
 		);
 	});
 });
+
+it('rejects a rectangle table that cannot be addressed by 16-bit sprite IDs', () => {
+	const lookup = Object.fromEntries(
+		Array.from({ length: 0x10001 }, (_, index) => [index, { x: 0, y: 0, spriteWidth: 1, spriteHeight: 1 }])
+	);
+	expect(() => prepareSpriteAtlas(lookup, 1, 1)).toThrow('16-bit sprite ID limit');
+});

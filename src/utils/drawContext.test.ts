@@ -29,12 +29,12 @@ describe('DrawContext', () => {
 		const { calls, target } = createRecorder();
 		const draw = new DrawContext(target);
 
-		draw.drawSprite(3, 5, spriteId(7));
-		draw.drawSprite(11, 13, spriteId(17), 19, 23);
+		draw.drawSprite(3, 5, spriteId(7), 0);
+		draw.drawSprite(11, 13, spriteId(17), 0, 19, 23);
 
 		expect(calls).toEqual([
-			[3, 5, 7, undefined, undefined],
-			[11, 13, 17, 19, 23],
+			[3, 5, 7, 0, undefined, undefined],
+			[11, 13, 17, 0, 19, 23],
 		]);
 	});
 
@@ -43,19 +43,19 @@ describe('DrawContext', () => {
 		const draw = new DrawContext(target);
 
 		draw.startGroup(10, 20);
-		draw.drawSprite(1, 2, spriteId(3));
+		draw.drawSprite(1, 2, spriteId(3), 0);
 		draw.startGroup(100, 200);
-		draw.drawSprite(4, 5, spriteId(6));
+		draw.drawSprite(4, 5, spriteId(6), 0);
 		draw.endGroup();
-		draw.drawSprite(7, 8, spriteId(9));
+		draw.drawSprite(7, 8, spriteId(9), 0);
 		draw.endGroup();
-		draw.drawSprite(11, 12, spriteId(13));
+		draw.drawSprite(11, 12, spriteId(13), 0);
 
 		expect(calls).toEqual([
-			[11, 22, 3, undefined, undefined],
-			[114, 225, 6, undefined, undefined],
-			[17, 28, 9, undefined, undefined],
-			[11, 12, 13, undefined, undefined],
+			[11, 22, 3, 0, undefined, undefined],
+			[114, 225, 6, 0, undefined, undefined],
+			[17, 28, 9, 0, undefined, undefined],
+			[11, 12, 13, 0, undefined, undefined],
 		]);
 	});
 
@@ -65,13 +65,13 @@ describe('DrawContext', () => {
 
 		for (let frame = 0; frame < 2; frame += 1) {
 			draw.startGroup(frame * 10, frame * 20);
-			draw.drawSprite(1, 2, spriteId(frame));
+			draw.drawSprite(1, 2, spriteId(frame), 0);
 			draw.endGroup();
 		}
 
 		expect(calls).toEqual([
-			[1, 2, 0, undefined, undefined],
-			[11, 22, 1, undefined, undefined],
+			[1, 2, 0, 0, undefined, undefined],
+			[11, 22, 1, 0, undefined, undefined],
 		]);
 	});
 });

@@ -1,6 +1,6 @@
 # glugglugglug
 
-`glugglugglug` is a small immediate-mode WebGL2 sprite renderer. It keeps one sprite atlas in GPU memory and uploads one compact, ordered instance list per frame.
+`glugglugglug` is a small immediate-mode WebGL2 sprite renderer. It keeps an R8 coverage-mask atlas and an RGBA8 color palette in GPU memory and uploads one compact, ordered instance list per frame.
 
 ```ts
 import { Engine, type SpriteLookup } from 'glugglugglug';
@@ -10,20 +10,37 @@ const lookup: SpriteLookup = {
 	player: { x: 0, y: 0, spriteWidth: 16, spriteHeight: 16 },
 };
 
-const atlas = engine.setSpriteAtlas(atlasImage, lookup);
+// One byte of coverage per texel: 0 is uncovered, 255 is fully covered.
+const atlas = engine.setSpriteAtlas({ width: 16, height: 16, data: new Uint8Array(256).fill(255) }, lookup);
+// Straight-alpha RGBA8 entries; colors are addressed by their numeric array index.
+engine.setPalette(new Uint8Array([255,255,255,255, 255,0,0,128]));
 const player = atlas.resolveSprite('player');
 engine.render(() => {
-	engine.drawSprite(10, 20, player);
-	engine.drawSprite(40, 20, player, 32, 32);
+	engine.drawSprite(10, 20, player, 0);
+	engine.drawSprite(40, 20, player, 1, 32, 32);
 });
 ```
 
-Each sprite instance contains `x`, `y`, `width`, `height`, and one dense numeric sprite id. Calls are drawn in append order with premultiplied-alpha blending. `renderFrame()` is available for one synchronous frame, `resize()` explicitly changes the canvas drawing buffer, and `destroy()` stops the render loop and releases owned WebGL resources.
+Each sprite instance occupies 20 bytes: four float32 values (`x`, `y`, `width`, `height`), one uint16 sprite ID, and one uint16 palette index. Calls are drawn in append order with premultiplied-alpha blending. `renderFrame()` is available for one synchronous frame, `resize()` explicitly changes the canvas drawing buffer, and `destroy()` stops the render loop and releases owned WebGL resources.
 
 `setSpriteAtlas()` validates and uploads the atlas, then returns its resolver. Resolve public string or numeric lookup keys
 once while installing application sprite tables and retain the resulting `SpriteId` values for drawing. Replacing the
 atlas invalidates ids from the previous resolver; rebuild application lookup tables from the new resolver before the next
 frame. Arbitrary numeric lookup keys are not dense ids and must also be resolved.
+
+The atlas descriptor contains tightly packed, top-to-bottom `Uint8Array` coverage bytes, one per texel. The GPU samples
+its red channel. The palette contains straight-alpha RGBA8 entries; the vertex shader looks up the selected color and
+premultiplies it, then the fragment shader multiplies it by coverage. All colors share the same sprite batch.
+
+`setPalette(bytes)` replaces only color storage and skips identical updates. It can be called between frames without
+reinstalling the atlas or resolving sprite IDs again. Both resource setters retain private copies of their byte arrays.
+Atlas IDs and palette indices are limited to 16 bits; resource sizes must also fit the device's texture limits. Invalid
+per-draw IDs and indices are programmer errors and are not validated in the hot path.
+
+`releaseRenderingMemory()` releases the atlas, rectangle table, palette, and GPU instance storage. Resource setters
+can update retained data while released; `restoreRenderingMemory()` uploads the latest data. `destroy()` deletes all
+owned resources. Mask and palette uploads establish pixel-unpack state, and the sprite pass restores all three texture
+bindings and sampler bindings after trusted render hooks.
 
 The drawing surface preserves transparent pixels so the WebGL output can composite over the canvas element's CSS
 background.
@@ -87,10 +104,11 @@ import { Engine, LineDrawer } from 'glugglugglug';
 
 const engine = new Engine(canvas);
 const lines = new LineDrawer(engine);
-const panelSpriteId = engine.setSpriteAtlas(atlasImage, lookup).resolveSprite('panel');
+engine.setPalette(new Uint8Array([255,255,255,255]));
+const panelSpriteId = engine.setSpriteAtlas(mask, lookup).resolveSprite('panel');
 
 engine.renderFrame(() => {
-	engine.drawSprite(20, 20, panelSpriteId, 120, 80);
+	engine.drawSprite(20, 20, panelSpriteId, 0, 120, 80);
 	lines.drawLine(20, 20, 140, 100, 2, [1, 0.25, 0.1, 1]);
 });
 
@@ -137,12 +155,13 @@ import { DrawContext } from 'glugglugglug/utils';
 
 const engine = new Engine(canvas);
 const draw = new DrawContext(engine);
-const atlas = engine.setSpriteAtlas(atlasImage, lookup);
+engine.setPalette(new Uint8Array([255,255,255,255]));
+const atlas = engine.setSpriteAtlas(mask, lookup);
 const panelSpriteId = atlas.resolveSprite('panel');
 
 engine.renderFrame(() => {
 	draw.startGroup(panel.x, panel.y);
-	draw.drawSprite(0, 0, panelSpriteId, panel.width, panel.height);
+	draw.drawSprite(0, 0, panelSpriteId, 0, panel.width, panel.height);
 	draw.endGroup();
 });
 ```
