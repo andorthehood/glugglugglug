@@ -51,7 +51,7 @@ export class Renderer {
 		private readonly canvas: HTMLCanvasElement,
 		initialCapacity: number
 	) {
-		const gl = canvas.getContext('webgl2', { antialias: false, alpha: true });
+		const gl = canvas.getContext('webgl2', { antialias: false, alpha: true, depth: false });
 		if (!gl) {
 			throw new Error('WebGL2 is required but unavailable.');
 		}

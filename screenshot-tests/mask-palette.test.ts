@@ -4,6 +4,23 @@ test.beforeEach(async ({ page }) => {
 	await page.goto('http://localhost:3003/mask-palette.html');
 });
 
+test('uses a transparent depth-free framebuffer through empty frames, resize, and resource restoration', async ({
+	page,
+}) => {
+	const stages = await page.evaluate(async () => {
+		const { readContextLifecycle } = await import('./test-cases/mask-palette.ts');
+		return readContextLifecycle();
+	});
+	for (const stage of stages) {
+		expect(stage).toMatchObject({
+			attributes: { depth: false, antialias: false, alpha: true, premultipliedAlpha: true },
+			depthBits: 0,
+			pixel: [0, 0, 0, 0],
+			error: 0,
+		});
+	}
+});
+
 test('samples odd-width R8 coverage with premultiplied RGBA and updates only palette storage', async ({ page }) => {
 	const result = await page.evaluate(async () => {
 		const { readCoverageFrames } = await import('./test-cases/mask-palette.ts');

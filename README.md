@@ -48,7 +48,9 @@ owned resources. Atlas uploads establish pixel-unpack state. After trusted rende
 mask and rectangle texture/sampler bindings plus the palette uniform-block mapping and buffer binding at point 0.
 
 The drawing surface preserves transparent pixels so the WebGL output can composite over the canvas element's CSS
-background.
+background. The WebGL2 context requests `depth: false`: the default framebuffer has no depth buffer, and sprites use
+submission order for layering. A raw render hook that needs depth testing must bind a framebuffer with its own depth
+attachment. Custom depth resources remain available; the renderer still restores its defensive graphics state after hooks.
 
 `drawSprite()` and per-frame rendering are unchecked hot paths. Atlas validity and public-key resolution are checked
 outside the render loop, but sprite lifecycle, dense-id, numeric-value, and per-frame destruction validation is
@@ -160,7 +162,9 @@ Publishing requires a version that does not already exist in the npm registry.
 ## Visual regression tests
 
 The Chromium snapshot covers atlas selection, default and explicit sizing, positioning, insertion-order layering,
-alpha blending, instance-buffer growth, clearing between frames, RGBA underlays, and the line overlay.
+alpha blending, instance-buffer growth, and clearing between frames. Browser checks also cover palette updates,
+resource restoration, and the depth-free context through resize and empty frames. Application-owned background,
+line, and RGBA overlay passes are covered by the consuming editor's web-ui tests.
 
 ```sh
 npm run test:screenshot
