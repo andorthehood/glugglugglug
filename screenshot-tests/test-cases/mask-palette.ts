@@ -1,5 +1,77 @@
 import { Engine } from 'glugglugglug';
 
+export async function readAlphaDiscardSamples() {
+	const canvas = document.createElement('canvas');
+	canvas.width = 1;
+	canvas.height = 1;
+	const engine = new Engine(canvas);
+	const gl = engine.gl;
+	const coverage = [0, 1, 128, 255];
+	const alpha = [0, 64, 128, 255];
+	const atlas = engine.setSpriteAtlas(
+		{ width: 4, height: 1, data: new Uint8Array(coverage) },
+		Object.fromEntries(coverage.map((value, x) => [value, { x, y: 0, spriteWidth: 1, spriteHeight: 1 }]))
+	);
+	engine.setPalette(new Uint8Array(alpha.flatMap(value => [200, 100, 50, value])));
+	const results: Array<{ coverage: number; alpha: number; passed: boolean }> = [];
+	try {
+		for (const mask of coverage) {
+			for (const [paletteIndex, opacity] of alpha.entries()) {
+				const query = gl.createQuery()!;
+				try {
+					gl.beginQuery(gl.ANY_SAMPLES_PASSED, query);
+					engine.renderFrame(() => engine.drawSprite(0, 0, atlas.resolveSprite(mask), paletteIndex));
+					gl.endQuery(gl.ANY_SAMPLES_PASSED);
+					gl.flush();
+					while (!gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)) {
+						await new Promise(resolve => requestAnimationFrame(resolve));
+					}
+					results.push({
+						coverage: mask,
+						alpha: opacity,
+						passed: Boolean(gl.getQueryParameter(query, gl.QUERY_RESULT)),
+					});
+				} finally {
+					gl.deleteQuery(query);
+				}
+			}
+		}
+		return { results, error: gl.getError() };
+	} finally {
+		engine.destroy();
+	}
+}
+
+export function readCoverageOverContent() {
+	const canvas = document.createElement('canvas');
+	canvas.width = 3;
+	canvas.height = 1;
+	const engine = new Engine(canvas);
+	const gl = engine.gl;
+	const atlas = engine.setSpriteAtlas(
+		{ width: 4, height: 1, data: new Uint8Array([0, 128, 255, 255]) },
+		{ mask: { x: 0, y: 0, spriteWidth: 3, spriteHeight: 1 }, fill: { x: 3, y: 0, spriteWidth: 1, spriteHeight: 1 } }
+	);
+	const mask = atlas.resolveSprite('mask');
+	const fill = atlas.resolveSprite('fill');
+	try {
+		const frames = [0, 128, 255].map(alpha => {
+			engine.setPalette(new Uint8Array([20, 40, 80, alpha, 200, 100, 50, 128, 255, 0, 255, 0]));
+			engine.renderFrame(() => {
+				engine.drawSprite(0, 0, fill, 0, 3, 1);
+				engine.drawSprite(0, 0, mask, 1);
+				engine.drawSprite(0, 0, fill, 2, 3, 1);
+			});
+			const pixels = new Uint8Array(12);
+			gl.readPixels(0, 0, 3, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+			return { alpha, pixels: [...pixels] };
+		});
+		return { frames, error: gl.getError() };
+	} finally {
+		engine.destroy();
+	}
+}
+
 export function readContextLifecycle() {
 	const canvas = document.createElement('canvas');
 	const engine = new Engine(canvas);

@@ -31,7 +31,9 @@ frame. Arbitrary numeric lookup keys are not dense ids and must also be resolved
 The atlas descriptor contains tightly packed, top-to-bottom `Uint8Array` coverage bytes, one per texel. The GPU samples
 its red channel. `setPalette()` accepts 1–256 straight-alpha RGBA8 entries. On each changed upload, the renderer
 normalizes those bytes and premultiplies RGB by alpha on the CPU. The vertex shader indexes a `std140` uniform block;
-the fragment shader multiplies that prepared color by coverage. All colors share the same sprite batch.
+the fragment shader multiplies that prepared color by coverage and discards fragments whose resulting alpha is exactly
+zero. Premultiplied-alpha blending remains enabled for surviving fragments, including translucent colors and fractional
+coverage. All colors share the same sprite batch.
 
 The GPU palette always occupies 4 KiB: 256 float32 `vec4` slots, with unused slots cleared. A 189-entry palette uses
 3,024 bytes of those slots and supplies 756 input bytes; the byte input format does not describe the GPU allocation.
