@@ -1,9 +1,9 @@
 import { INSTANCE_BYTE_STRIDE, InstanceBuffer } from './instanceBuffer.ts';
 import { assertLive, requiresLive } from './lifecycle.ts';
 import { fragmentShaderSource, PALETTE_CAPACITY, vertexShaderSource } from './shaders.ts';
-import { prepareSpriteAtlas } from './spriteAtlas.ts';
+import { validateSpriteAtlasGrid } from './spriteAtlas.ts';
 
-import type { SpriteAtlasImage, SpriteAtlasResolver, SpriteId, SpriteLookup } from './types.ts';
+import type { SpriteAtlasGrid, SpriteAtlasImage, SpriteId } from './types.ts';
 
 const PALETTE_BINDING = 0;
 
@@ -27,15 +27,15 @@ export class Renderer {
 	private readonly resolutionLocation: WebGLUniformLocation;
 	private readonly atlasSizeLocation: WebGLUniformLocation;
 	private readonly atlasSamplerLocation: WebGLUniformLocation;
-	private readonly lookupSamplerLocation: WebGLUniformLocation;
+	private readonly cellSizeLocation: WebGLUniformLocation;
+	private readonly columnsLocation: WebGLUniformLocation;
 	private readonly paletteBlockIndex: number;
 	private paletteBuffer: WebGLBuffer | null = null;
 	private palette: PreparedPalette | null = null;
 	private gpuCapacity: number;
 	private atlasTexture: WebGLTexture | null = null;
-	private lookupTexture: WebGLTexture | null = null;
 	private atlasImage: SpriteAtlasImage | null = null;
-	private atlasMetadata: Uint16Array | null = null;
+	private atlasGrid: SpriteAtlasGrid | null = null;
 	private atlasWidth = 0;
 	private atlasHeight = 0;
 	private memoryReleased = false;
@@ -66,7 +66,8 @@ export class Renderer {
 		this.resolutionLocation = resources.resolutionLocation;
 		this.atlasSizeLocation = resources.atlasSizeLocation;
 		this.atlasSamplerLocation = resources.atlasSamplerLocation;
-		this.lookupSamplerLocation = resources.lookupSamplerLocation;
+		this.cellSizeLocation = resources.cellSizeLocation;
+		this.columnsLocation = resources.columnsLocation;
 		this.paletteBlockIndex = resources.paletteBlockIndex;
 
 		gl.useProgram(this.program);
@@ -82,7 +83,6 @@ export class Renderer {
 		gl.vertexAttribDivisor(1, 1);
 
 		gl.uniform1i(this.atlasSamplerLocation, 0);
-		gl.uniform1i(this.lookupSamplerLocation, 1);
 		gl.viewport(0, 0, canvas.width, canvas.height);
 		gl.clearColor(0, 0, 0, 0);
 		gl.enable(gl.BLEND);
@@ -91,13 +91,13 @@ export class Renderer {
 	}
 
 	/**
-	 * Uploads a sprite atlas and its rectangle lookup table, replacing any previously uploaded atlas.
+	 * Uploads a uniform-grid sprite atlas, replacing any previously uploaded atlas.
 	 *
 	 * @param image - Tightly packed top-to-bottom R8 binary visibility and mask dimensions.
-	 * @param lookup - Mapping from sprite identifiers to rectangles within the atlas image.
+	 * @param grid - Shared cell dimensions, column count, and populated cell count.
 	 */
 	@requiresLive
-	setSpriteAtlas(image: SpriteAtlasImage, lookup: SpriteLookup): SpriteAtlasResolver {
+	setSpriteAtlas(image: SpriteAtlasImage, grid: SpriteAtlasGrid): void {
 		const { width, height } = image;
 		if (!(image.data instanceof Uint8Array) || image.data.length !== width * height) {
 			throw new RangeError('Mask data must contain exactly one mask byte per texel.');
@@ -105,21 +105,17 @@ export class Renderer {
 		for (const value of image.data) {
 			if (value !== 0 && value !== 255) throw new RangeError('Mask bytes must be 0 or 255.');
 		}
-		const prepared = prepareSpriteAtlas(lookup, width, height);
+		validateSpriteAtlasGrid(grid, width, height);
 		const maxTextureSize = Number(this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE));
 		if (width > maxTextureSize || height > maxTextureSize) {
 			throw new RangeError(`Mask dimensions exceed the GPU limit of ${maxTextureSize}.`);
 		}
-		if (prepared.spriteCount > maxTextureSize) {
-			throw new RangeError(`The sprite lookup exceeds the GPU limit of ${maxTextureSize} entries.`);
-		}
 		const retainedImage = { width, height, data: image.data.slice() };
-		if (!this.memoryReleased) this.replaceAtlasTextures(retainedImage, prepared.metadata, prepared.spriteCount);
+		if (!this.memoryReleased) this.replaceAtlasTexture(retainedImage);
 		this.atlasImage = retainedImage;
-		this.atlasMetadata = prepared.metadata;
+		this.atlasGrid = { ...grid };
 		this.atlasWidth = width;
 		this.atlasHeight = height;
-		return prepared.resolver;
 	}
 
 	/** Retains 1–256 straight-alpha RGBA8 entries and prepares premultiplied float32 colors once per update. */
@@ -161,10 +157,6 @@ export class Renderer {
 			this.gl.deleteTexture(this.atlasTexture);
 			this.atlasTexture = null;
 		}
-		if (this.lookupTexture) {
-			this.gl.deleteTexture(this.lookupTexture);
-			this.lookupTexture = null;
-		}
 		if (this.paletteBuffer) this.gl.deleteBuffer(this.paletteBuffer);
 		this.paletteBuffer = null;
 		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.instanceBufferObject);
@@ -180,40 +172,24 @@ export class Renderer {
 			return;
 		}
 
-		if (this.atlasImage && this.atlasMetadata) {
-			this.replaceAtlasTextures(this.atlasImage, this.atlasMetadata, this.atlasMetadata.length / 4);
+		if (this.atlasImage) {
+			this.replaceAtlasTexture(this.atlasImage);
 		}
 		if (this.palette) this.replacePaletteBuffer(this.palette.colors);
 		this.memoryReleased = false;
 	}
 
-	/** Atomically allocates and uploads the mask and rectangle textures. */
-	private replaceAtlasTextures(image: SpriteAtlasImage, metadata: Uint16Array, spriteCount: number): void {
-		const nextAtlasTexture = requireResource(this.gl.createTexture(), 'atlas texture');
-		const nextLookupTexture = this.gl.createTexture();
-		if (!nextLookupTexture) {
-			this.gl.deleteTexture(nextAtlasTexture);
-			throw new Error('Could not create the WebGL sprite lookup texture.');
-		}
-
+	/** Atomically replaces the atlas texture, preserving the installed one if allocation or upload fails. */
+	private replaceAtlasTexture(image: SpriteAtlasImage): void {
+		const texture = requireResource(this.gl.createTexture(), 'atlas texture');
 		try {
-			this.uploadAtlasTexture(nextAtlasTexture, image);
-			this.uploadLookupTexture(nextLookupTexture, metadata, spriteCount);
+			this.uploadAtlasTexture(texture, image);
 		} catch (error) {
-			this.gl.deleteTexture(nextAtlasTexture);
-			this.gl.deleteTexture(nextLookupTexture);
+			this.gl.deleteTexture(texture);
 			throw error;
 		}
-
-		if (this.atlasTexture) {
-			this.gl.deleteTexture(this.atlasTexture);
-		}
-		if (this.lookupTexture) {
-			this.gl.deleteTexture(this.lookupTexture);
-		}
-
-		this.atlasTexture = nextAtlasTexture;
-		this.lookupTexture = nextLookupTexture;
+		if (this.atlasTexture) this.gl.deleteTexture(this.atlasTexture);
+		this.atlasTexture = texture;
 	}
 
 	/**
@@ -242,15 +218,14 @@ export class Renderer {
 	 *
 	 * @param x - Horizontal position of the sprite's top-left corner in canvas pixels.
 	 * @param y - Vertical position of the sprite's top-left corner in canvas pixels.
-	 * @param spriteId - Dense uint16 identifier resolved from the current atlas setup.
+	 * @param spriteId - Zero-based row-major cell index in the active atlas.
 	 * @param paletteIndex - Uint16 field selecting an active palette color, with indices in the 0–255 range.
-	 * @param width - Rendered width in pixels, or the atlas rectangle width when omitted.
-	 * @param height - Rendered height in pixels, or the atlas rectangle height when omitted.
+	 * @param width - Rendered width in pixels, or the shared cell width when omitted.
+	 * @param height - Rendered height in pixels, or the shared cell height when omitted.
 	 */
 	drawSprite(x: number, y: number, spriteId: SpriteId, paletteIndex: number, width?: number, height?: number): void {
-		const metadataOffset = spriteId * 4;
-		const resolvedWidth = width ?? this.atlasMetadata![metadataOffset + 2];
-		const resolvedHeight = height ?? this.atlasMetadata![metadataOffset + 3];
+		const resolvedWidth = width ?? this.atlasGrid!.cellWidth;
+		const resolvedHeight = height ?? this.atlasGrid!.cellHeight;
 		this.instances.append(x, y, resolvedWidth, resolvedHeight, spriteId, paletteIndex);
 	}
 
@@ -266,7 +241,7 @@ export class Renderer {
 		if (spriteCount === 0) {
 			return;
 		}
-		if (!this.atlasTexture || !this.lookupTexture || !this.paletteBuffer) {
+		if (!this.atlasTexture || !this.paletteBuffer) {
 			throw new Error('A sprite mask atlas and palette must be set before drawing sprites.');
 		}
 
@@ -297,16 +272,14 @@ export class Renderer {
 
 		gl.activeTexture(gl.TEXTURE0);
 		gl.bindTexture(gl.TEXTURE_2D, this.atlasTexture);
-		gl.activeTexture(gl.TEXTURE1);
-		gl.bindTexture(gl.TEXTURE_2D, this.lookupTexture);
 		gl.bindSampler(0, null);
-		gl.bindSampler(1, null);
 		gl.uniform1i(this.atlasSamplerLocation, 0);
-		gl.uniform1i(this.lookupSamplerLocation, 1);
 		gl.uniformBlockBinding(this.program, this.paletteBlockIndex, PALETTE_BINDING);
 		gl.bindBufferBase(gl.UNIFORM_BUFFER, PALETTE_BINDING, this.paletteBuffer);
 		gl.uniform2f(this.resolutionLocation, this.canvas.width, this.canvas.height);
 		gl.uniform2f(this.atlasSizeLocation, this.atlasWidth, this.atlasHeight);
+		gl.uniform2f(this.cellSizeLocation, this.atlasGrid!.cellWidth, this.atlasGrid!.cellHeight);
+		gl.uniform1ui(this.columnsLocation, this.atlasGrid!.columns);
 		gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, spriteCount);
 	}
 
@@ -339,9 +312,6 @@ export class Renderer {
 		if (this.atlasTexture) {
 			this.gl.deleteTexture(this.atlasTexture);
 		}
-		if (this.lookupTexture) {
-			this.gl.deleteTexture(this.lookupTexture);
-		}
 		if (this.paletteBuffer) this.gl.deleteBuffer(this.paletteBuffer);
 		this.paletteBuffer = null;
 		this.palette = null;
@@ -349,9 +319,8 @@ export class Renderer {
 		this.gl.deleteVertexArray(this.vertexArray);
 		this.gl.deleteProgram(this.program);
 		this.atlasTexture = null;
-		this.lookupTexture = null;
 		this.atlasImage = null;
-		this.atlasMetadata = null;
+		this.atlasGrid = null;
 	}
 
 	/**
@@ -366,22 +335,6 @@ export class Renderer {
 		gl.bindTexture(gl.TEXTURE_2D, texture);
 		preparePixelUpload(gl);
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, image.width, image.height, 0, gl.RED, gl.UNSIGNED_BYTE, image.data);
-		configureTexture(gl);
-	}
-
-	/**
-	 * Uploads sprite rectangles to an integer texture that the vertex shader indexes by sprite ID.
-	 *
-	 * @param texture - WebGL texture that receives the packed rectangle metadata.
-	 * @param metadata - Packed x, y, width, and height values for each sprite.
-	 * @param spriteCount - Number of sprite records represented by the metadata.
-	 */
-	private uploadLookupTexture(texture: WebGLTexture, metadata: Uint16Array, spriteCount: number): void {
-		const gl = this.gl;
-		gl.activeTexture(gl.TEXTURE1);
-		gl.bindTexture(gl.TEXTURE_2D, texture);
-		preparePixelUpload(gl);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16UI, spriteCount, 1, 0, gl.RGBA_INTEGER, gl.UNSIGNED_SHORT, metadata);
 		configureTexture(gl);
 	}
 
@@ -444,7 +397,8 @@ function createRendererResources(gl: WebGL2RenderingContext): {
 	resolutionLocation: WebGLUniformLocation;
 	atlasSizeLocation: WebGLUniformLocation;
 	atlasSamplerLocation: WebGLUniformLocation;
-	lookupSamplerLocation: WebGLUniformLocation;
+	cellSizeLocation: WebGLUniformLocation;
+	columnsLocation: WebGLUniformLocation;
 	paletteBlockIndex: number;
 } {
 	const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
@@ -465,7 +419,8 @@ function createRendererResources(gl: WebGL2RenderingContext): {
 			resolutionLocation: requireUniform(gl, program, 'u_resolution'),
 			atlasSizeLocation: requireUniform(gl, program, 'u_atlasSize'),
 			atlasSamplerLocation: requireUniform(gl, program, 'u_atlas'),
-			lookupSamplerLocation: requireUniform(gl, program, 'u_spriteRectangles'),
+			cellSizeLocation: requireUniform(gl, program, 'u_cellSize'),
+			columnsLocation: requireUniform(gl, program, 'u_columns'),
 			paletteBlockIndex,
 		};
 	} catch (error) {

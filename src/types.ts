@@ -1,24 +1,13 @@
-export type SpriteIdentifier = string | number;
+/** Zero-based row-major atlas cell index, stored as uint16 in each instance. */
+export type SpriteId = number;
 
-declare const spriteIdBrand: unique symbol;
-
-/** Dense numeric identifier resolved against one sprite atlas setup. */
-export type SpriteId = number & { readonly [spriteIdBrand]: true };
-
-/** Cold-path resolver returned when a sprite atlas is installed. */
-export interface SpriteAtlasResolver {
-	/** Resolves one public atlas key to the dense identifier accepted by `drawSprite()`. */
-	resolveSprite(identifier: SpriteIdentifier): SpriteId;
-}
-
-export type SpriteCoordinates = {
-	x: number;
-	y: number;
-	spriteWidth: number;
-	spriteHeight: number;
+/** All source cells share these dimensions; the last row may be partially populated. */
+export type SpriteAtlasGrid = {
+	readonly cellWidth: number;
+	readonly cellHeight: number;
+	readonly columns: number;
+	readonly cellCount: number;
 };
-
-export type SpriteLookup = Record<SpriteIdentifier, SpriteCoordinates>;
 
 /** Binary visibility pixels in top-to-bottom order: 0 skips the texel, 255 draws the palette color. */
 export type SpriteAtlasImage = {
