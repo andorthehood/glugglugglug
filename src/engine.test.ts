@@ -121,10 +121,10 @@ describe('Engine', () => {
 		expect(webgl.clearColor).toHaveBeenLastCalledWith(0, 0, 0, 0);
 	});
 
-	it('preserves transparent pixels by default', () => {
+	it('requests a transparent context without a depth buffer', () => {
 		const { canvas, engine, webgl } = createEngine();
 
-		expect(canvas.getContext).toHaveBeenCalledWith('webgl2', { antialias: false, alpha: true });
+		expect(canvas.getContext).toHaveBeenCalledWith('webgl2', { antialias: false, alpha: true, depth: false });
 		engine.renderFrame(() => undefined);
 		expect(webgl.clearColor).toHaveBeenLastCalledWith(0, 0, 0, 0);
 	});

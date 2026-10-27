@@ -1,5 +1,32 @@
 import { Engine } from 'glugglugglug';
 
+export function readContextLifecycle() {
+	const canvas = document.createElement('canvas');
+	const engine = new Engine(canvas);
+	const gl = engine.gl;
+	const read = () => {
+		engine.renderFrame(() => {});
+		const pixel = new Uint8Array(4);
+		gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+		return {
+			attributes: gl.getContextAttributes(),
+			depthBits: gl.getParameter(gl.DEPTH_BITS),
+			pixel: [...pixel],
+			error: gl.getError(),
+		};
+	};
+	try {
+		const initial = read();
+		engine.resize(257, 193);
+		const resized = read();
+		engine.releaseRenderingMemory();
+		engine.restoreRenderingMemory();
+		return [initial, resized, read()];
+	} finally {
+		engine.destroy();
+	}
+}
+
 export function readCoverageFrames() {
 	const canvas = document.createElement('canvas');
 	canvas.width = 3;
