@@ -9,7 +9,7 @@ function createAtlas() {
 			[
 				// Each row contains the fill column, four stairs pixels, and four cutout pixels.
 				[255, 255, 0, 0, 0, 255, 255, 255, 0],
-				[0, 255, 255, 0, 0, 255, 0, 128, 255],
+				[0, 255, 255, 0, 0, 255, 0, 255, 255],
 				[0, 255, 255, 255, 0, 255, 0, 255, 255],
 				[0, 255, 255, 255, 255, 0, 0, 255, 255],
 			].flat()

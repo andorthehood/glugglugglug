@@ -48,7 +48,8 @@ export const fragmentShaderSource = `#version 300 es
 	out vec4 outColor;
 
 	void main() {
-		outColor = v_color * texture(u_atlas, v_textureCoordinate).r;
-		if (outColor.a == 0.0) discard;
+		float mask = texture(u_atlas, v_textureCoordinate).r;
+		if (mask == 0.0 || v_color.a == 0.0) discard;
+		outColor = v_color;
 	}
 `;

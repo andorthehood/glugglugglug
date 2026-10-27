@@ -51,7 +51,7 @@ export class Engine {
 	/**
 	 * Atomically replaces the persistent R8 mask atlas and its sprite lookup.
 	 *
-	 * @param image - Tightly packed top-to-bottom coverage bytes and positive mask dimensions.
+	 * @param image - Tightly packed top-to-bottom binary visibility bytes (0 or 255) and positive mask dimensions.
 	 * @param lookup - Public identifiers and source rectangles for sprites in the image.
 	 */
 	@requiresLive
