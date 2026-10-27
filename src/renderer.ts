@@ -266,9 +266,9 @@ export class Renderer {
 			this.gpuCapacity = this.instances.capacity;
 			gl.bufferData(gl.ARRAY_BUFFER, this.gpuCapacity * INSTANCE_BYTE_STRIDE, gl.DYNAMIC_DRAW);
 		}
-		const instanceBytes = this.instances.usedBytes();
-		gl.bufferSubData(gl.ARRAY_BUFFER, 0, instanceBytes);
-		this.frameStats.uploadedInstanceBytes = instanceBytes.byteLength;
+		const usedByteLength = this.instances.usedByteLength;
+		gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.instances.fullBytes, 0, usedByteLength);
+		this.frameStats.uploadedInstanceBytes = usedByteLength;
 
 		gl.activeTexture(gl.TEXTURE0);
 		gl.bindTexture(gl.TEXTURE_2D, this.atlasTexture);

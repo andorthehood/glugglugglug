@@ -141,7 +141,7 @@ describe('Engine', () => {
 		const bytes = webgl.bufferSubData.mock.calls[0][2] as Uint8Array;
 		const floats = new Float32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4);
 		const integers = new Uint32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4);
-		expect(bytes.byteLength).toBe(40);
+		expect(webgl.bufferSubData).toHaveBeenCalledWith(webgl.ARRAY_BUFFER, 0, bytes, 0, 40);
 		expect(Array.from(floats.slice(0, 4))).toEqual([10, 20, 8, 16]);
 		expect(integers[4]).toBe(0);
 		expect(Array.from(floats.slice(5, 9))).toEqual([30, 40, 50, 60]);
@@ -213,6 +213,38 @@ describe('Engine', () => {
 		expect(webgl.createBuffer).toHaveBeenCalledTimes(2);
 		expect(webgl.bufferData).toHaveBeenCalledTimes(1);
 		expect(webgl.bufferData).toHaveBeenCalledWith(webgl.ARRAY_BUFFER, 40, webgl.DYNAMIC_DRAW);
+	});
+
+	it('reuses upload views and limits used ranges after growth, empty frames, and memory restoration', () => {
+		const { engine, webgl } = createEngine(1);
+		engine.setSpriteAtlas(createAtlasImage(), { cellWidth: 8, cellHeight: 16, columns: 8, cellCount: 32 });
+		const render = (count: number): Uint8Array | undefined => {
+			webgl.bufferSubData.mockClear();
+			engine.renderFrame(() => {
+				for (let i = 0; i < count; i++) engine.drawSprite(i, 0, 0, 0);
+			});
+			expect(engine.frameStats).toEqual({ spriteCount: count, uploadedInstanceBytes: count * 20 });
+			if (count === 0) {
+				expect(webgl.bufferSubData).not.toHaveBeenCalled();
+				return undefined;
+			}
+			expect(webgl.bufferSubData).toHaveBeenCalledOnce();
+			const bytes = webgl.bufferSubData.mock.calls[0][2] as Uint8Array;
+			expect(webgl.bufferSubData).toHaveBeenCalledWith(webgl.ARRAY_BUFFER, 0, bytes, 0, count * 20);
+			return bytes;
+		};
+
+		const initial = render(1);
+		expect(render(1)).toBe(initial);
+		const grown = render(3);
+		expect(grown).not.toBe(initial);
+		expect(grown?.byteLength).toBe(80);
+		expect(render(1)).toBe(grown);
+		render(0);
+		engine.releaseRenderingMemory();
+		render(0);
+		engine.restoreRenderingMemory();
+		expect(render(2)).toBe(grown);
 	});
 
 	it('atomically replaces atlas resources and explicit resize updates the drawing buffer', () => {

@@ -11,6 +11,7 @@ export class InstanceBuffer {
 	private storage: ArrayBuffer;
 	private floats: Float32Array;
 	private integers: Uint16Array;
+	private bytes: Uint8Array;
 	private instanceCount = 0;
 
 	/**
@@ -23,6 +24,7 @@ export class InstanceBuffer {
 		this.storage = new ArrayBuffer(initialCapacity * INSTANCE_BYTE_STRIDE);
 		this.floats = new Float32Array(this.storage);
 		this.integers = new Uint16Array(this.storage);
+		this.bytes = new Uint8Array(this.storage);
 	}
 
 	/** @returns The number of instances that fit in the current allocation. */
@@ -69,12 +71,11 @@ export class InstanceBuffer {
 	}
 
 	/**
-	 * Creates a zero-copy byte view over the portion written during the current frame.
-	 *
-	 * @returns A Uint8Array view suitable for one `bufferSubData()` upload.
+	 * Returns the retained full-storage byte view, replaced only when storage grows.
+	 * Upload only `usedByteLength` bytes and skip uploads when that length is zero.
 	 */
-	usedBytes(): Uint8Array {
-		return new Uint8Array(this.storage, 0, this.usedByteLength);
+	get fullBytes(): Uint8Array {
+		return this.bytes;
 	}
 
 	/**
@@ -93,8 +94,10 @@ export class InstanceBuffer {
 		}
 
 		const nextStorage = new ArrayBuffer(nextCapacity * INSTANCE_BYTE_STRIDE);
-		new Uint8Array(nextStorage).set(new Uint8Array(this.storage, 0, this.usedByteLength));
+		const nextBytes = new Uint8Array(nextStorage);
+		nextBytes.set(this.bytes);
 		this.storage = nextStorage;
+		this.bytes = nextBytes;
 		this.floats = new Float32Array(nextStorage);
 		this.integers = new Uint16Array(nextStorage);
 	}
