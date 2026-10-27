@@ -5,11 +5,10 @@ import type {
 	EngineOptions,
 	RenderCallback,
 	RenderHooks,
+	SpriteAtlasGrid,
 	SpriteAtlasImage,
-	SpriteAtlasResolver,
 	SpriteFrameStats,
 	SpriteId,
-	SpriteLookup,
 } from './types.ts';
 
 const DEFAULT_INITIAL_CAPACITY = 1_024;
@@ -49,17 +48,17 @@ export class Engine {
 	}
 
 	/**
-	 * Atomically replaces the persistent R8 mask atlas and its sprite lookup.
+	 * Atomically replaces the persistent R8 mask atlas and its uniform grid.
 	 *
 	 * @param image - Tightly packed top-to-bottom binary visibility bytes (0 or 255) and positive mask dimensions.
-	 * @param lookup - Public identifiers and source rectangles for sprites in the image.
+	 * @param grid - Shared cell dimensions, columns, and populated cell count.
 	 */
 	@requiresLive
-	setSpriteAtlas(image: SpriteAtlasImage, lookup: SpriteLookup): SpriteAtlasResolver {
+	setSpriteAtlas(image: SpriteAtlasImage, grid: SpriteAtlasGrid): void {
 		if (this.frameOpen) {
 			throw new Error('The sprite atlas cannot be replaced while a frame is being built.');
 		}
-		return this.renderer.setSpriteAtlas(image, lookup);
+		this.renderer.setSpriteAtlas(image, grid);
 	}
 
 	/** Replaces 1–256 straight-alpha RGBA8 colors between frames; GPU colors are prepared as premultiplied floats. */
@@ -142,7 +141,7 @@ export class Engine {
 	 *
 	 * @param x - Destination X coordinate in canvas pixels.
 	 * @param y - Destination Y coordinate in canvas pixels.
-	 * @param spriteId - Dense uint16 identifier resolved from the active atlas setup.
+	 * @param spriteId - Zero-based row-major cell index in the active atlas.
 	 * @param paletteIndex - Uint16 field selecting an active palette color, with indices in the 0–255 range.
 	 * @param width - Optional destination width; defaults to the sprite source width.
 	 * @param height - Optional destination height; defaults to the sprite source height.

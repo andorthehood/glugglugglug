@@ -8,9 +8,9 @@ export async function readAlphaDiscardSamples() {
 	const gl = engine.gl;
 	const visibility = [0, 255];
 	const alpha = [0, 64, 128, 255];
-	const atlas = engine.setSpriteAtlas(
+	engine.setSpriteAtlas(
 		{ width: 2, height: 1, data: new Uint8Array(visibility) },
-		Object.fromEntries(visibility.map((value, x) => [value, { x, y: 0, spriteWidth: 1, spriteHeight: 1 }]))
+		{ cellWidth: 1, cellHeight: 1, columns: 2, cellCount: 2 }
 	);
 	engine.setPalette(new Uint8Array(alpha.flatMap(value => [200, 100, 50, value])));
 	const results: Array<{ visibility: number; alpha: number; passed: boolean }> = [];
@@ -20,7 +20,7 @@ export async function readAlphaDiscardSamples() {
 				const query = gl.createQuery()!;
 				try {
 					gl.beginQuery(gl.ANY_SAMPLES_PASSED, query);
-					engine.renderFrame(() => engine.drawSprite(0, 0, atlas.resolveSprite(mask), paletteIndex));
+					engine.renderFrame(() => engine.drawSprite(0, 0, visibility.indexOf(mask), paletteIndex));
 					gl.endQuery(gl.ANY_SAMPLES_PASSED);
 					gl.flush();
 					while (!gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)) {
@@ -48,12 +48,12 @@ export function readVisibilityOverContent() {
 	canvas.height = 1;
 	const engine = new Engine(canvas);
 	const gl = engine.gl;
-	const atlas = engine.setSpriteAtlas(
-		{ width: 4, height: 1, data: new Uint8Array([0, 255, 255, 255]) },
-		{ mask: { x: 0, y: 0, spriteWidth: 3, spriteHeight: 1 }, fill: { x: 3, y: 0, spriteWidth: 1, spriteHeight: 1 } }
+	engine.setSpriteAtlas(
+		{ width: 6, height: 1, data: new Uint8Array([0, 255, 255, 255, 255, 255]) },
+		{ cellWidth: 3, cellHeight: 1, columns: 2, cellCount: 2 }
 	);
-	const mask = atlas.resolveSprite('mask');
-	const fill = atlas.resolveSprite('fill');
+	const mask = 0;
+	const fill = 1;
 	try {
 		const frames = [0, 128, 255].map(alpha => {
 			engine.setPalette(new Uint8Array([20, 40, 80, alpha, 200, 100, 50, 128, 255, 0, 255, 0]));
@@ -105,12 +105,11 @@ export function readVisibilityFrames() {
 	canvas.height = 2;
 	const engine = new Engine(canvas);
 	const gl = engine.gl;
-	const id = engine
-		.setSpriteAtlas(
-			{ width: 3, height: 2, data: new Uint8Array([0, 255, 255, 255, 0, 255]) },
-			{ mask: { x: 0, y: 0, spriteWidth: 3, spriteHeight: 2 } }
-		)
-		.resolveSprite('mask');
+	engine.setSpriteAtlas(
+		{ width: 3, height: 2, data: new Uint8Array([0, 255, 255, 255, 0, 255]) },
+		{ cellWidth: 3, cellHeight: 2, columns: 1, cellCount: 1 }
+	);
+	const id = 0;
 	const colors = new Uint8Array([200, 100, 50, 128]);
 	engine.setPalette(colors);
 	const errors: number[] = [];
@@ -127,7 +126,7 @@ export function readVisibilityFrames() {
 		try {
 			engine.setSpriteAtlas(
 				{ width: 1, height: 1, data: new Uint8Array([128]) },
-				{ invalid: { x: 0, y: 0, spriteWidth: 1, spriteHeight: 1 } }
+				{ cellWidth: 1, cellHeight: 1, columns: 1, cellCount: 1 }
 			);
 		} catch (error) {
 			rejected = error instanceof RangeError;
@@ -157,12 +156,11 @@ export function readPaletteAfterHook() {
 	const colors = new Uint8Array(256 * 4);
 	colors.set([49, 103, 211, 255], 255 * 4);
 	engine.setPalette(colors);
-	const id = engine
-		.setSpriteAtlas(
-			{ width: 1, height: 1, data: new Uint8Array([255]) },
-			{ fill: { x: 0, y: 0, spriteWidth: 1, spriteHeight: 1 } }
-		)
-		.resolveSprite('fill');
+	engine.setSpriteAtlas(
+		{ width: 1, height: 1, data: new Uint8Array([255]) },
+		{ cellWidth: 1, cellHeight: 1, columns: 1, cellCount: 1 }
+	);
+	const id = 0;
 	const program = gl.getParameter(gl.CURRENT_PROGRAM) as WebGLProgram;
 	const paletteBlock = gl.getUniformBlockIndex(program, 'Palette');
 	const otherPalette = gl.createBuffer();
