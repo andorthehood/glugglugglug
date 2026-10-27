@@ -4,6 +4,39 @@ test.beforeEach(async ({ page }) => {
 	await page.goto('http://localhost:3003/mask-palette.html');
 });
 
+test('discards only exact-zero final alpha, including transparent palette colors', async ({ page }) => {
+	const { results, error } = await page.evaluate(async () => {
+		const { readAlphaDiscardSamples } = await import('./test-cases/mask-palette.ts');
+		return readAlphaDiscardSamples();
+	});
+	for (const sample of results) {
+		expect(sample.passed, `coverage=${sample.coverage}, alpha=${sample.alpha}`).toBe(
+			sample.coverage !== 0 && sample.alpha !== 0
+		);
+	}
+	expect(error).toBe(0);
+});
+
+test('keeps holes, transparent palette entries, and fractional coverage over existing content', async ({ page }) => {
+	const { frames, error } = await page.evaluate(async () => {
+		const { readCoverageOverContent } = await import('./test-cases/mask-palette.ts');
+		return readCoverageOverContent();
+	});
+	for (const { alpha, pixels } of frames) {
+		const destination = [20, 40, 80].map(channel => Math.round((channel * alpha) / 255));
+		for (const [x, coverage] of [0, 128, 255].entries()) {
+			const opacity = ((128 / 255) * coverage) / 255;
+			const expected = [200, 100, 50].map((channel, i) =>
+				Math.round(channel * opacity + destination[i] * (1 - opacity))
+			);
+			expected.push(Math.round(255 * opacity + alpha * (1 - opacity)));
+			for (let channel = 0; channel < 4; channel++)
+				expect(Math.abs(pixels[x * 4 + channel] - expected[channel])).toBeLessThanOrEqual(1);
+		}
+	}
+	expect(error).toBe(0);
+});
+
 test('uses a transparent depth-free framebuffer through empty frames, resize, and resource restoration', async ({
 	page,
 }) => {

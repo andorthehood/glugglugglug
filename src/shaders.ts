@@ -49,5 +49,6 @@ export const fragmentShaderSource = `#version 300 es
 
 	void main() {
 		outColor = v_color * texture(u_atlas, v_textureCoordinate).r;
+		if (outColor.a == 0.0) discard;
 	}
 `;
