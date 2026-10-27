@@ -101,6 +101,7 @@ describe('Engine', () => {
 			gl.viewport(1, 2, 3, 4);
 			gl.colorMask(false, false, false, false);
 			gl.enable(gl.SCISSOR_TEST);
+			gl.enable(gl.RASTERIZER_DISCARD);
 			gl.clearColor(1, 0, 0, 0);
 		});
 
@@ -111,7 +112,8 @@ describe('Engine', () => {
 		expect(webgl.bindFramebuffer).toHaveBeenLastCalledWith(webgl.FRAMEBUFFER, null);
 		expect(webgl.viewport).toHaveBeenLastCalledWith(0, 0, 320, 200);
 		expect(webgl.colorMask).toHaveBeenLastCalledWith(true, true, true, true);
-		expect(webgl.disable).toHaveBeenLastCalledWith(webgl.SCISSOR_TEST);
+		expect(webgl.disable).toHaveBeenCalledWith(webgl.SCISSOR_TEST);
+		expect(webgl.disable).toHaveBeenCalledWith(webgl.RASTERIZER_DISCARD);
 		expect(webgl.clearColor).toHaveBeenLastCalledWith(0, 0, 0, 0);
 	});
 

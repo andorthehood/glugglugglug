@@ -79,3 +79,25 @@ test('reads palette slot 255 and restores uniform-block bindings after render ho
 	expect(result.pixels).toEqual([49, 103, 211, 255]);
 	expect(result.error).toBe(0);
 });
+
+test('clears after a discard-enabled post hook, including empty and released frames', async ({ page }) => {
+	const stages = await page.evaluate(async () => {
+		const { readClearAfterDiscardHook } = await import('./test-cases/mask-palette.ts');
+		return readClearAfterDiscardHook();
+	});
+	for (const stage of stages) {
+		for (let offset = 0; offset < stage.seeded.length; offset += 4) {
+			expect(stage.seeded.slice(offset, offset + 4), stage.name).toEqual([255, 0, 0, 255]);
+		}
+		expect(
+			stage.empty.every(channel => channel === 0),
+			stage.name
+		).toBe(true);
+		if (stage.drawn) {
+			for (let offset = 0; offset < stage.drawn.length; offset += 4) {
+				expect(stage.drawn.slice(offset, offset + 4), stage.name).toEqual([73, 129, 211, 255]);
+			}
+		}
+		expect(stage.error, stage.name).toBe(0);
+	}
+});
