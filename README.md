@@ -53,6 +53,7 @@ per-draw IDs and indices are programmer errors and are not validated in the hot 
 can update retained data while released; `restoreRenderingMemory()` uploads the latest data. `destroy()` deletes all
 owned resources. Atlas uploads establish pixel-unpack state. After trusted render hooks, the sprite pass restores the
 mask texture/sampler binding, grid uniforms, and the palette uniform-block mapping and buffer binding at point 0.
+Frame setup restores clear-related state, including rasterizer discard, before clearing even frames with no sprites.
 
 The drawing surface preserves transparent pixels so the WebGL output can composite over the canvas element's CSS
 background. The WebGL2 context requests `depth: false`: the default framebuffer has no depth buffer, and sprites use

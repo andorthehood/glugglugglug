@@ -181,3 +181,58 @@ export function readPaletteAfterHook() {
 		engine.destroy();
 	}
 }
+
+export function readClearAfterDiscardHook() {
+	const canvas = document.createElement('canvas');
+	canvas.width = 4;
+	canvas.height = 2;
+	const engine = new Engine(canvas);
+	const gl = engine.gl;
+	engine.setSpriteAtlas(
+		{ width: 1, height: 1, data: new Uint8Array([255]) },
+		{ cellWidth: 1, cellHeight: 1, columns: 1, cellCount: 1 }
+	);
+	engine.setPalette(new Uint8Array([73, 129, 211, 255]));
+	engine.hooks.postDraw.push(context => context.enable(context.RASTERIZER_DISCARD));
+	const read = () => {
+		const pixels = new Uint8Array(canvas.width * canvas.height * 4);
+		gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+		gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+		return [...pixels];
+	};
+	const seed = () => {
+		gl.clearColor(1, 0, 0, 1);
+		gl.clear(gl.COLOR_BUFFER_BIT);
+	};
+	const stage = (name: string, drawSprites = true) => {
+		engine.hooks.preDraw.push(seed);
+		engine.renderFrame(() => {});
+		const seeded = read();
+		engine.hooks.preDraw.pop();
+		engine.renderFrame(() => {});
+		const empty = read();
+		let drawn: number[] | null = null;
+		if (drawSprites) {
+			engine.renderFrame(() => {
+				// A raw callback may dirty discard again after the frame clear.
+				gl.enable(gl.RASTERIZER_DISCARD);
+				engine.drawSprite(0, 0, 0, 0, canvas.width, canvas.height);
+			});
+			drawn = read();
+		}
+		return { name, seeded, empty, drawn, error: gl.getError() };
+	};
+	try {
+		const initial = stage('initial');
+		engine.resize(7, 3);
+		const resized = stage('resized');
+		engine.releaseRenderingMemory();
+		const released = stage('released', false);
+		engine.resize(5, 9);
+		const resizedWhileReleased = stage('resized while released', false);
+		engine.restoreRenderingMemory();
+		return [initial, resized, released, resizedWhileReleased, stage('restored')];
+	} finally {
+		engine.destroy();
+	}
+}

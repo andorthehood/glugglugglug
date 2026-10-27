@@ -206,6 +206,7 @@ export class Renderer {
 		gl.viewport(0, 0, this.canvas.width, this.canvas.height);
 		gl.colorMask(true, true, true, true);
 		gl.disable(gl.SCISSOR_TEST);
+		gl.disable(gl.RASTERIZER_DISCARD);
 		gl.clearColor(0, 0, 0, 0);
 		gl.clear(gl.COLOR_BUFFER_BIT);
 	}
