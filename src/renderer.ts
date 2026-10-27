@@ -24,7 +24,7 @@ export class Renderer {
 	private readonly instanceBufferObject: WebGLBuffer;
 	private readonly vertexArray: WebGLVertexArrayObject;
 	private readonly instances: InstanceBuffer;
-	private readonly resolutionLocation: WebGLUniformLocation;
+	private readonly pixelToClipLocation: WebGLUniformLocation;
 	private readonly atlasSizeLocation: WebGLUniformLocation;
 	private readonly atlasSamplerLocation: WebGLUniformLocation;
 	private readonly cellSizeLocation: WebGLUniformLocation;
@@ -63,7 +63,7 @@ export class Renderer {
 		this.program = resources.program;
 		this.instanceBufferObject = resources.instanceBuffer;
 		this.vertexArray = resources.vertexArray;
-		this.resolutionLocation = resources.resolutionLocation;
+		this.pixelToClipLocation = resources.pixelToClipLocation;
 		this.atlasSizeLocation = resources.atlasSizeLocation;
 		this.atlasSamplerLocation = resources.atlasSamplerLocation;
 		this.cellSizeLocation = resources.cellSizeLocation;
@@ -277,7 +277,7 @@ export class Renderer {
 		gl.uniform1i(this.atlasSamplerLocation, 0);
 		gl.uniformBlockBinding(this.program, this.paletteBlockIndex, PALETTE_BINDING);
 		gl.bindBufferBase(gl.UNIFORM_BUFFER, PALETTE_BINDING, this.paletteBuffer);
-		gl.uniform2f(this.resolutionLocation, this.canvas.width, this.canvas.height);
+		gl.uniform2f(this.pixelToClipLocation, 2 / this.canvas.width, -2 / this.canvas.height);
 		gl.uniform2f(this.atlasSizeLocation, this.atlasWidth, this.atlasHeight);
 		gl.uniform2f(this.cellSizeLocation, this.atlasGrid!.cellWidth, this.atlasGrid!.cellHeight);
 		gl.uniform1ui(this.columnsLocation, this.atlasGrid!.columns);
@@ -395,7 +395,7 @@ function createRendererResources(gl: WebGL2RenderingContext): {
 	program: WebGLProgram;
 	instanceBuffer: WebGLBuffer;
 	vertexArray: WebGLVertexArrayObject;
-	resolutionLocation: WebGLUniformLocation;
+	pixelToClipLocation: WebGLUniformLocation;
 	atlasSizeLocation: WebGLUniformLocation;
 	atlasSamplerLocation: WebGLUniformLocation;
 	cellSizeLocation: WebGLUniformLocation;
@@ -417,7 +417,7 @@ function createRendererResources(gl: WebGL2RenderingContext): {
 			program,
 			instanceBuffer,
 			vertexArray,
-			resolutionLocation: requireUniform(gl, program, 'u_resolution'),
+			pixelToClipLocation: requireUniform(gl, program, 'u_pixelToClip'),
 			atlasSizeLocation: requireUniform(gl, program, 'u_atlasSize'),
 			atlasSamplerLocation: requireUniform(gl, program, 'u_atlas'),
 			cellSizeLocation: requireUniform(gl, program, 'u_cellSize'),
