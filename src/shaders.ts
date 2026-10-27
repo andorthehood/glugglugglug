@@ -7,7 +7,7 @@ export const vertexShaderSource = `#version 300 es
 	layout(location = 0) in vec4 a_rectangle;
 	layout(location = 1) in uvec2 a_spriteAndPalette;
 
-	uniform vec2 u_resolution;
+	uniform vec2 u_pixelToClip;
 	uniform vec2 u_atlasSize;
 	uniform vec2 u_cellSize;
 	uniform uint u_columns;
@@ -32,8 +32,7 @@ export const vertexShaderSource = `#version 300 es
 		uvec2 cell = uvec2(cellId % u_columns, cellId / u_columns);
 
 		vec2 pixelPosition = a_rectangle.xy + corner * a_rectangle.zw;
-		vec2 clipPosition = pixelPosition / u_resolution * 2.0 - 1.0;
-		gl_Position = vec4(clipPosition * vec2(1.0, -1.0), 0.0, 1.0);
+		gl_Position = vec4(pixelPosition * u_pixelToClip + vec2(-1.0, 1.0), 0.0, 1.0);
 
 		vec2 atlasPixel = (vec2(cell) + corner) * u_cellSize;
 		v_textureCoordinate = atlasPixel / u_atlasSize;
