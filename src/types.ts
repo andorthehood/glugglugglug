@@ -20,7 +20,7 @@ export type SpriteCoordinates = {
 
 export type SpriteLookup = Record<SpriteIdentifier, SpriteCoordinates>;
 
-/** Single-channel coverage pixels in top-to-bottom order. Each byte is normalized from 0 to 1 by the GPU. */
+/** Binary visibility pixels in top-to-bottom order: 0 skips the texel, 255 draws the palette color. */
 export type SpriteAtlasImage = {
 	readonly width: number;
 	readonly height: number;

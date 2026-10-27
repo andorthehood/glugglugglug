@@ -308,9 +308,9 @@ describe('Engine', () => {
 		expect(() => engine.releaseRenderingMemory()).toThrow('engine has been destroyed');
 		expect(() => engine.restoreRenderingMemory()).toThrow('engine has been destroyed');
 	});
-	it('uploads odd-width R8 coverage with explicit tightly packed pixel-transfer state', () => {
+	it('uploads odd-width R8 binary masks with explicit tightly packed pixel-transfer state', () => {
 		const { engine, webgl } = createEngine();
-		const pixels = new Uint8Array([0, 128, 255, 255, 128, 0]);
+		const pixels = new Uint8Array([0, 255, 255, 255, 255, 0]);
 		engine.setSpriteAtlas(
 			{ width: 3, height: 2, data: pixels },
 			{
@@ -436,6 +436,30 @@ describe('Engine', () => {
 		expect(engine.frameStats.uploadedInstanceBytes).toBe(20);
 	});
 
+	it.each([1, 127, 128, 254])('rejects mask byte %s without replacing the installed atlas', value => {
+		const { engine, webgl } = createEngine();
+		const lookup = { fill: { x: 0, y: 0, spriteWidth: 1, spriteHeight: 1 } };
+		const id = engine
+			.setSpriteAtlas({ width: 1, height: 1, data: new Uint8Array([255]) }, lookup)
+			.resolveSprite('fill');
+		webgl.createTexture.mockClear();
+		webgl.deleteTexture.mockClear();
+		webgl.texImage2D.mockClear();
+		expect(() => engine.setSpriteAtlas({ width: 1, height: 1, data: new Uint8Array([value]) }, lookup)).toThrow(
+			'0 or 255'
+		);
+		expect(webgl.createTexture).not.toHaveBeenCalled();
+		expect(webgl.deleteTexture).not.toHaveBeenCalled();
+		engine.renderFrame(() => engine.drawSprite(0, 0, id, 0));
+		expect(webgl.drawArraysInstanced).toHaveBeenCalledOnce();
+		engine.releaseRenderingMemory();
+		expect(() => engine.setSpriteAtlas({ width: 1, height: 1, data: new Uint8Array([value]) }, lookup)).toThrow(
+			'0 or 255'
+		);
+		engine.restoreRenderingMemory();
+		expect(webgl.texImage2D.mock.calls[0].at(-1)).toEqual(new Uint8Array([255]));
+	});
+
 	it('rejects malformed masks and out-of-range palettes before replacing resources', () => {
 		const { engine, webgl } = createEngine();
 		webgl.createBuffer.mockClear();
@@ -443,9 +467,7 @@ describe('Engine', () => {
 			expect(() => engine.setPalette(new Uint8Array(size))).toThrow('1 to 256 RGBA8 entries');
 		}
 		expect(webgl.createBuffer).not.toHaveBeenCalled();
-		expect(() => engine.setSpriteAtlas({ width: 3, height: 2, data: new Uint8Array(5) }, {})).toThrow(
-			'one coverage byte'
-		);
+		expect(() => engine.setSpriteAtlas({ width: 3, height: 2, data: new Uint8Array(5) }, {})).toThrow('one mask byte');
 	});
 
 	it('cleans up the shader program when the palette uniform block cannot be found', () => {

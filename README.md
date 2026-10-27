@@ -1,6 +1,6 @@
 # glugglugglug
 
-`glugglugglug` is a small immediate-mode WebGL2 sprite renderer. It keeps an R8 coverage-mask atlas and a premultiplied float32 color palette in a GPU uniform buffer and uploads one compact, ordered instance list per frame.
+`glugglugglug` is a small immediate-mode WebGL2 sprite renderer. It keeps an R8 binary visibility atlas and a premultiplied float32 color palette in a GPU uniform buffer and uploads one compact, ordered instance list per frame.
 
 ```ts
 import { Engine, type SpriteLookup } from 'glugglugglug';
@@ -10,7 +10,7 @@ const lookup: SpriteLookup = {
 	player: { x: 0, y: 0, spriteWidth: 16, spriteHeight: 16 },
 };
 
-// One byte of coverage per texel: 0 is uncovered, 255 is fully covered.
+// One visibility byte per texel: 0 skips it, 255 draws it.
 const atlas = engine.setSpriteAtlas({ width: 16, height: 16, data: new Uint8Array(256).fill(255) }, lookup);
 // Straight-alpha RGBA8 entries; colors are addressed by their numeric array index.
 engine.setPalette(new Uint8Array([255,255,255,255, 255,0,0,128]));
@@ -28,12 +28,13 @@ once while installing application sprite tables and retain the resulting `Sprite
 atlas invalidates ids from the previous resolver; rebuild application lookup tables from the new resolver before the next
 frame. Arbitrary numeric lookup keys are not dense ids and must also be resolved.
 
-The atlas descriptor contains tightly packed, top-to-bottom `Uint8Array` coverage bytes, one per texel. The GPU samples
+The atlas descriptor contains tightly packed, top-to-bottom `Uint8Array` binary visibility bytes (0 or 255), one per texel. The GPU samples
 its red channel. `setPalette()` accepts 1–256 straight-alpha RGBA8 entries. On each changed upload, the renderer
 normalizes those bytes and premultiplies RGB by alpha on the CPU. The vertex shader indexes a `std140` uniform block;
-the fragment shader multiplies that prepared color by coverage and discards fragments whose resulting alpha is exactly
-zero. Premultiplied-alpha blending remains enabled for surviving fragments, including translucent colors and fractional
-coverage. All colors share the same sprite batch.
+the fragment shader discards holes and fully transparent palette entries, then outputs the prepared palette color
+directly. Premultiplied-alpha blending remains enabled for translucent colors. All colors share the same sprite batch.
+Fractional mask bytes are rejected when installing an atlas, before replacing existing resources; express opacity
+through palette alpha. Validation runs once per installation, never per sprite or frame.
 
 The GPU palette always occupies 4 KiB: 256 float32 `vec4` slots, with unused slots cleared. A 189-entry palette uses
 3,024 bytes of those slots and supplies 756 input bytes; the byte input format does not describe the GPU allocation.

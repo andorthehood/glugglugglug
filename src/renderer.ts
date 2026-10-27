@@ -93,14 +93,17 @@ export class Renderer {
 	/**
 	 * Uploads a sprite atlas and its rectangle lookup table, replacing any previously uploaded atlas.
 	 *
-	 * @param image - Tightly packed top-to-bottom R8 coverage and mask dimensions.
+	 * @param image - Tightly packed top-to-bottom R8 binary visibility and mask dimensions.
 	 * @param lookup - Mapping from sprite identifiers to rectangles within the atlas image.
 	 */
 	@requiresLive
 	setSpriteAtlas(image: SpriteAtlasImage, lookup: SpriteLookup): SpriteAtlasResolver {
 		const { width, height } = image;
 		if (!(image.data instanceof Uint8Array) || image.data.length !== width * height) {
-			throw new RangeError('Mask data must contain exactly one coverage byte per texel.');
+			throw new RangeError('Mask data must contain exactly one mask byte per texel.');
+		}
+		for (const value of image.data) {
+			if (value !== 0 && value !== 255) throw new RangeError('Mask bytes must be 0 or 255.');
 		}
 		const prepared = prepareSpriteAtlas(lookup, width, height);
 		const maxTextureSize = Number(this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE));
@@ -352,7 +355,7 @@ export class Renderer {
 	}
 
 	/**
-	 * Uploads an R8 coverage array and configures nearest-neighbor mask sampling.
+	 * Uploads an R8 binary visibility array and configures nearest-neighbor mask sampling.
 	 *
 	 * @param texture - WebGL texture that receives the atlas image.
 	 * @param image - Source image containing the sprite atlas.

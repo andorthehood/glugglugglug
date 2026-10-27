@@ -6,16 +6,16 @@ export async function readAlphaDiscardSamples() {
 	canvas.height = 1;
 	const engine = new Engine(canvas);
 	const gl = engine.gl;
-	const coverage = [0, 1, 128, 255];
+	const visibility = [0, 255];
 	const alpha = [0, 64, 128, 255];
 	const atlas = engine.setSpriteAtlas(
-		{ width: 4, height: 1, data: new Uint8Array(coverage) },
-		Object.fromEntries(coverage.map((value, x) => [value, { x, y: 0, spriteWidth: 1, spriteHeight: 1 }]))
+		{ width: 2, height: 1, data: new Uint8Array(visibility) },
+		Object.fromEntries(visibility.map((value, x) => [value, { x, y: 0, spriteWidth: 1, spriteHeight: 1 }]))
 	);
 	engine.setPalette(new Uint8Array(alpha.flatMap(value => [200, 100, 50, value])));
-	const results: Array<{ coverage: number; alpha: number; passed: boolean }> = [];
+	const results: Array<{ visibility: number; alpha: number; passed: boolean }> = [];
 	try {
-		for (const mask of coverage) {
+		for (const mask of visibility) {
 			for (const [paletteIndex, opacity] of alpha.entries()) {
 				const query = gl.createQuery()!;
 				try {
@@ -27,7 +27,7 @@ export async function readAlphaDiscardSamples() {
 						await new Promise(resolve => requestAnimationFrame(resolve));
 					}
 					results.push({
-						coverage: mask,
+						visibility: mask,
 						alpha: opacity,
 						passed: Boolean(gl.getQueryParameter(query, gl.QUERY_RESULT)),
 					});
@@ -42,14 +42,14 @@ export async function readAlphaDiscardSamples() {
 	}
 }
 
-export function readCoverageOverContent() {
+export function readVisibilityOverContent() {
 	const canvas = document.createElement('canvas');
 	canvas.width = 3;
 	canvas.height = 1;
 	const engine = new Engine(canvas);
 	const gl = engine.gl;
 	const atlas = engine.setSpriteAtlas(
-		{ width: 4, height: 1, data: new Uint8Array([0, 128, 255, 255]) },
+		{ width: 4, height: 1, data: new Uint8Array([0, 255, 255, 255]) },
 		{ mask: { x: 0, y: 0, spriteWidth: 3, spriteHeight: 1 }, fill: { x: 3, y: 0, spriteWidth: 1, spriteHeight: 1 } }
 	);
 	const mask = atlas.resolveSprite('mask');
@@ -99,7 +99,7 @@ export function readContextLifecycle() {
 	}
 }
 
-export function readCoverageFrames() {
+export function readVisibilityFrames() {
 	const canvas = document.createElement('canvas');
 	canvas.width = 3;
 	canvas.height = 2;
@@ -107,7 +107,7 @@ export function readCoverageFrames() {
 	const gl = engine.gl;
 	const id = engine
 		.setSpriteAtlas(
-			{ width: 3, height: 2, data: new Uint8Array([0, 128, 255, 255, 0, 128]) },
+			{ width: 3, height: 2, data: new Uint8Array([0, 255, 255, 255, 0, 255]) },
 			{ mask: { x: 0, y: 0, spriteWidth: 3, spriteHeight: 2 } }
 		)
 		.resolveSprite('mask');
@@ -123,6 +123,16 @@ export function readCoverageFrames() {
 	};
 	try {
 		const initial = read();
+		let rejected = false;
+		try {
+			engine.setSpriteAtlas(
+				{ width: 1, height: 1, data: new Uint8Array([128]) },
+				{ invalid: { x: 0, y: 0, spriteWidth: 1, spriteHeight: 1 } }
+			);
+		} catch (error) {
+			rejected = error instanceof RangeError;
+		}
+		const afterRejectedAtlas = read();
 		// Palette buffers are independent of pixel-transfer state left by render hooks.
 		gl.pixelStorei(gl.UNPACK_ALIGNMENT, 8);
 		gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 7);
@@ -132,7 +142,7 @@ export function readCoverageFrames() {
 		engine.releaseRenderingMemory();
 		engine.setPalette(colors);
 		engine.restoreRenderingMemory();
-		return { initial, updated, restored: read(), frameStats, errors };
+		return { initial, afterRejectedAtlas, rejected, updated, restored: read(), frameStats, errors };
 	} finally {
 		engine.destroy();
 	}

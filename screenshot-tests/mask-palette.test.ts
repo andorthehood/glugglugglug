@@ -4,28 +4,28 @@ test.beforeEach(async ({ page }) => {
 	await page.goto('http://localhost:3003/mask-palette.html');
 });
 
-test('discards only exact-zero final alpha, including transparent palette colors', async ({ page }) => {
+test('discards only holes and zero palette alpha, including transparent palette colors', async ({ page }) => {
 	const { results, error } = await page.evaluate(async () => {
 		const { readAlphaDiscardSamples } = await import('./test-cases/mask-palette.ts');
 		return readAlphaDiscardSamples();
 	});
 	for (const sample of results) {
-		expect(sample.passed, `coverage=${sample.coverage}, alpha=${sample.alpha}`).toBe(
-			sample.coverage !== 0 && sample.alpha !== 0
+		expect(sample.passed, `visibility=${sample.visibility}, alpha=${sample.alpha}`).toBe(
+			sample.visibility !== 0 && sample.alpha !== 0
 		);
 	}
 	expect(error).toBe(0);
 });
 
-test('keeps holes, transparent palette entries, and fractional coverage over existing content', async ({ page }) => {
+test('keeps holes, transparent palette entries, and translucent colors over existing content', async ({ page }) => {
 	const { frames, error } = await page.evaluate(async () => {
-		const { readCoverageOverContent } = await import('./test-cases/mask-palette.ts');
-		return readCoverageOverContent();
+		const { readVisibilityOverContent } = await import('./test-cases/mask-palette.ts');
+		return readVisibilityOverContent();
 	});
 	for (const { alpha, pixels } of frames) {
 		const destination = [20, 40, 80].map(channel => Math.round((channel * alpha) / 255));
-		for (const [x, coverage] of [0, 128, 255].entries()) {
-			const opacity = ((128 / 255) * coverage) / 255;
+		for (const [x, visibility] of [0, 255, 255].entries()) {
+			const opacity = ((128 / 255) * visibility) / 255;
 			const expected = [200, 100, 50].map((channel, i) =>
 				Math.round(channel * opacity + destination[i] * (1 - opacity))
 			);
@@ -54,19 +54,21 @@ test('uses a transparent depth-free framebuffer through empty frames, resize, an
 	}
 });
 
-test('samples odd-width R8 coverage with premultiplied RGBA and updates only palette storage', async ({ page }) => {
+test('samples odd-width R8 visibility with premultiplied RGBA and updates only palette storage', async ({ page }) => {
 	const result = await page.evaluate(async () => {
-		const { readCoverageFrames } = await import('./test-cases/mask-palette.ts');
-		return readCoverageFrames();
+		const { readVisibilityFrames } = await import('./test-cases/mask-palette.ts');
+		return readVisibilityFrames();
 	});
-	const initial = [100, 50, 25, 128, 0, 0, 0, 0, 50, 25, 13, 64, 0, 0, 0, 0, 50, 25, 13, 64, 100, 50, 25, 128];
+	const initial = [100, 50, 25, 128, 0, 0, 0, 0, 100, 50, 25, 128, 0, 0, 0, 0, 100, 50, 25, 128, 100, 50, 25, 128];
 	expect(result.initial).toEqual(initial);
 	expect(result.updated).toEqual([
-		0, 255, 0, 255, 0, 0, 0, 0, 0, 128, 0, 128, 0, 0, 0, 0, 0, 128, 0, 128, 0, 255, 0, 255,
+		0, 255, 0, 255, 0, 0, 0, 0, 0, 255, 0, 255, 0, 0, 0, 0, 0, 255, 0, 255, 0, 255, 0, 255,
 	]);
+	expect(result.rejected).toBe(true);
+	expect(result.afterRejectedAtlas).toEqual(initial);
 	expect(result.restored).toEqual(initial);
 	expect(result.frameStats).toEqual({ spriteCount: 1, uploadedInstanceBytes: 20 });
-	expect(result.errors).toEqual([0, 0, 0]);
+	expect(result.errors).toEqual([0, 0, 0, 0]);
 });
 
 test('reads palette slot 255 and restores uniform-block bindings after render hooks', async ({ page }) => {
