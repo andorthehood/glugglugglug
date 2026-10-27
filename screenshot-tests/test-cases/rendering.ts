@@ -3,15 +3,15 @@ import { Engine } from 'glugglugglug';
 /** A shared fill and two distinct asymmetric masks expose incorrect atlas selection or orientation. */
 function createAtlas() {
 	return {
-		width: 9,
+		width: 12,
 		height: 4,
 		data: new Uint8Array(
 			[
-				// Each row contains the fill column, four stairs pixels, and four cutout pixels.
-				[255, 255, 0, 0, 0, 255, 255, 255, 0],
-				[0, 255, 255, 0, 0, 255, 0, 255, 255],
-				[0, 255, 255, 255, 0, 255, 0, 255, 255],
-				[0, 255, 255, 255, 255, 0, 0, 255, 255],
+				// Each row contains the fill cell, four stairs pixels, and four cutout pixels.
+				[255, 255, 255, 255, 255, 0, 0, 0, 255, 255, 255, 0],
+				[255, 255, 255, 255, 255, 255, 0, 0, 255, 0, 255, 255],
+				[255, 255, 255, 255, 255, 255, 255, 0, 255, 0, 255, 255],
+				[255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 255, 255],
 			].flat()
 		),
 	};
@@ -25,14 +25,10 @@ if (!canvas) {
 const engine = new Engine(canvas, { initialCapacity: 2 });
 engine.setPalette(new Uint8Array([239, 68, 68, 255, 34, 197, 94, 255, 250, 204, 21, 153]));
 
-const atlas = engine.setSpriteAtlas(createAtlas(), {
-	fill: { x: 0, y: 0, spriteWidth: 1, spriteHeight: 1 },
-	stairs: { x: 1, y: 0, spriteWidth: 4, spriteHeight: 4 },
-	cutout: { x: 5, y: 0, spriteWidth: 4, spriteHeight: 4 },
-});
-const fill = atlas.resolveSprite('fill');
-const stairs = atlas.resolveSprite('stairs');
-const cutout = atlas.resolveSprite('cutout');
+engine.setSpriteAtlas(createAtlas(), { cellWidth: 4, cellHeight: 4, columns: 3, cellCount: 3 });
+const fill = 0;
+const stairs = 1;
+const cutout = 2;
 
 // This frame must be completely removed by the next renderFrame call.
 engine.renderFrame(() => {

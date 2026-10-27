@@ -52,7 +52,7 @@ export class InstanceBuffer {
 	 * @param y - Destination Y coordinate in canvas pixels.
 	 * @param width - Destination width in canvas pixels.
 	 * @param height - Destination height in canvas pixels.
-	 * @param spriteId - Dense uint16 id used by the GPU atlas lookup.
+	 * @param spriteId - Zero-based uint16 atlas cell index.
 	 * @param paletteIndex - Uint16 index into the active RGBA8 palette.
 	 */
 	append(x: number, y: number, width: number, height: number, spriteId: number, paletteIndex: number): void {

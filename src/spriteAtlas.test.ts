@@ -1,55 +1,28 @@
 import { describe, expect, it } from 'vitest';
+import { validateSpriteAtlasGrid } from './spriteAtlas.ts';
 
-import { normalizeSpriteIdentifier, prepareSpriteAtlas } from './spriteAtlas.ts';
+const grid = { cellWidth: 5, cellHeight: 8, columns: 16, cellCount: 129 };
 
-describe('prepareSpriteAtlas', () => {
-	it('assigns dense ids and encodes source rectangles', () => {
-		const prepared = prepareSpriteAtlas(
-			{
-				player: { x: 1, y: 2, spriteWidth: 8, spriteHeight: 16 },
-				enemy: { x: 20, y: 4, spriteWidth: 12, spriteHeight: 10 },
-			},
-			64,
-			64
-		);
-
-		expect(Array.from(prepared.metadata)).toEqual([1, 2, 8, 16, 20, 4, 12, 10]);
-		expect(prepared.spriteCount).toBe(2);
-		expect(prepared.resolver.resolveSprite('player')).toBe(0);
-		expect(prepared.resolver.resolveSprite('enemy')).toBe(1);
+describe('uniform atlas grid', () => {
+	it('accepts a partially populated last row and all 65536 uint16 cell indices', () => {
+		expect(() => validateSpriteAtlasGrid(grid, 80, 72)).not.toThrow();
+		expect(() =>
+			validateSpriteAtlasGrid({ cellWidth: 1, cellHeight: 1, columns: 256, cellCount: 65536 }, 256, 256)
+		).not.toThrow();
 	});
-
-	it('normalizes public numeric and string ids to the same lookup key', () => {
-		expect(normalizeSpriteIdentifier(42)).toBe('42');
-		expect(normalizeSpriteIdentifier('42')).toBe('42');
-		const prepared = prepareSpriteAtlas(
-			{
-				42: { x: 0, y: 0, spriteWidth: 1, spriteHeight: 1 },
-				player: { x: 1, y: 0, spriteWidth: 1, spriteHeight: 1 },
-			},
-			2,
-			1
-		);
-		expect(prepared.resolver.resolveSprite(42)).toBe(0);
-		expect(prepared.resolver.resolveSprite('42')).toBe(0);
-		expect(prepared.resolver.resolveSprite('player')).toBe(1);
-		expect(() => prepared.resolver.resolveSprite('missing')).toThrow('Unknown sprite identifier "missing"');
+	it.each(['cellWidth', 'cellHeight', 'columns', 'cellCount'] as const)('rejects invalid %s', key => {
+		for (const value of [0, -1, 1.5, NaN, Infinity]) {
+			expect(() => validateSpriteAtlasGrid({ ...grid, [key]: value }, 80, 72)).toThrow('positive integer');
+		}
 	});
-
-	it('rejects empty, invalid, or out-of-bounds lookup entries', () => {
-		expect(() => prepareSpriteAtlas({}, 16, 16)).toThrow('at least one sprite');
-		expect(() => prepareSpriteAtlas({ bad: { x: 0.5, y: 0, spriteWidth: 1, spriteHeight: 1 } }, 16, 16)).toThrow(
-			'expected a uint16 value'
-		);
-		expect(() => prepareSpriteAtlas({ bad: { x: 15, y: 0, spriteWidth: 2, spriteHeight: 1 } }, 16, 16)).toThrow(
-			'extends outside the atlas'
-		);
+	it('rejects mismatched dimensions, extra rows, and more than 65536 cells', () => {
+		for (const [width, height] of [
+			[79, 72],
+			[80, 71],
+			[80, 80],
+		]) {
+			expect(() => validateSpriteAtlasGrid(grid, width, height)).toThrow('dimensions must match');
+		}
+		expect(() => validateSpriteAtlasGrid({ ...grid, cellCount: 65537 }, 80, 72)).toThrow('16-bit');
 	});
-});
-
-it('rejects a rectangle table that cannot be addressed by 16-bit sprite IDs', () => {
-	const lookup = Object.fromEntries(
-		Array.from({ length: 0x10001 }, (_, index) => [index, { x: 0, y: 0, spriteWidth: 1, spriteHeight: 1 }])
-	);
-	expect(() => prepareSpriteAtlas(lookup, 1, 1)).toThrow('16-bit sprite ID limit');
 });
