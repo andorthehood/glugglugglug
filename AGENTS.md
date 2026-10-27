@@ -8,6 +8,7 @@
 
 ## Build, Test, and Development
 
+- Builds clear `dist/` before compilation so removed source files cannot remain in published output.
 - Run standalone package tasks with `npm run build|test|typecheck|lint`.
 - Run visual regressions with `npm run test:screenshot`.
 - Update intentional visual changes with `npm run test:screenshot:update`.
@@ -20,6 +21,7 @@
 
 ## Design Guidelines
 
+- Keep concrete render plugins in consuming applications; this package owns sprite rendering and the generic hook contract.
 - Preserve the allocation-conscious, validation-free sprite hot path documented under `docs/adr/`.
 
 ## Testing

@@ -32,7 +32,7 @@
 		</main>
 
 		<script type="module">
-			import { Engine, LineDrawer, RgbaTextureLayer } from '../dist/index.js';
+			import { Engine } from '../dist/index.js';
 
 			const output = document.querySelector('#output');
 			const status = document.querySelector('#status');
@@ -57,30 +57,15 @@
 			const fill = atlas.resolveSprite('fill');
 			const frame = atlas.resolveSprite('frame');
 
-			const pixels = new RgbaTextureLayer(engine);
-			const pixelTexture = pixels.uploadRgba8Texture(
-				new Uint8Array([
-					168, 85, 247, 255, 14, 165, 233, 255,
-					249, 115, 22, 220, 34, 197, 94, 180,
-				]),
-				2,
-				2,
-			);
-			pixels.setDrawCallback(layer => layer.drawTexture(pixelTexture, 24, 24, 720, 384, 0.3));
-
-			const lines = new LineDrawer(engine);
-
 			engine.render(() => {
 				const time = performance.now() / 1000;
 				const offset = Math.round(Math.sin(time * 2) * 80);
 				engine.drawSprite(80 + offset, 80, fill, 0, 160, 160);
 				engine.drawSprite(230, 130, frame, 1, 220, 180);
 				engine.drawSprite(520 - offset, 230, frame, 0, 96, 128);
-				lines.drawLine(48, 48, 720, 384, 3, [0.96, 0.98, 1, 0.9]);
-				lines.drawLine(48, 384, 720, 48, 3, [0.22, 0.83, 0.98, 0.9]);
 			});
 
-			status.textContent = 'RGBA underlay, ordered sprites, and line overlay.';
+			status.textContent = 'Ordered opaque and translucent mask sprites.';
 		</script>
 	</body>
 </html>

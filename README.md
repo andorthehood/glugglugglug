@@ -98,55 +98,8 @@ discover and destroy engine resources. Hook errors propagate, hook arrays run in
 while it is being iterated is a programmer error with unspecified consequences. Plugins own and must delete every GPU
 resource they create.
 
-### Line overlay example plugin
-
-`LineDrawer` is an exported example plugin built on those hooks. It resets a reusable CPU line buffer in `preDraw`, then
-uploads and draws all submitted lines in one instanced `postDraw` call, above every sprite. Each line carries endpoints,
-thickness, and packed RGBA color; it does not use or modify the sprite atlas.
-
-```ts
-import { Engine, LineDrawer } from 'glugglugglug';
-
-const engine = new Engine(canvas);
-const lines = new LineDrawer(engine);
-engine.setPalette(new Uint8Array([255,255,255,255]));
-const panelSpriteId = engine.setSpriteAtlas(mask, lookup).resolveSprite('panel');
-
-engine.renderFrame(() => {
-	engine.drawSprite(20, 20, panelSpriteId, 0, 120, 80);
-	lines.drawLine(20, 20, 140, 100, 2, [1, 0.25, 0.1, 1]);
-});
-
-// External plugins have an independent lifetime.
-lines.destroy();
-engine.destroy();
-```
-
-Color components are normalized from `0` to `1`. Like sprite submission, `drawLine()` performs no hot-path validation;
-invalid coordinates, thicknesses, colors, or lifecycle calls are programmer errors with unspecified consequences.
-
-### RGBA texture layer plugin
-
-`RgbaTextureLayer` uploads straight-alpha RGBA8 pixel arrays to reusable textures and draws them as top-left-origin
-rectangles. It has one fixed phase for its lifetime: `preDraw` by default, or `postDraw` when constructed as an overlay.
-The callback is where per-frame uploads and draws belong. The default phase places RGBA frames below the sprite scene.
-
-```ts
-import { RgbaTextureLayer } from 'glugglugglug';
-
-const layer = new RgbaTextureLayer(engine);
-let texture = layer.uploadRgba8Texture(pixels, width, height);
-
-layer.setDrawCallback(draw => {
-	draw.drawTexture(texture, 10, 20, width * 2, height * 2);
-});
-
-// Reuses the same WebGL texture; equal dimensions also reuse its storage.
-texture = layer.uploadRgba8Texture(nextPixels, width, height, { texture });
-```
-
-Uploads validate dimensions and byte length because they are explicit cold-path operations. `drawTexture()` is an
-unchecked hot path. Filtering defaults to `nearest`; pass `{ filter: 'linear' }` when uploading to opt into interpolation.
+The engine does not bundle concrete rendering plugins. Consumers own their hook implementations and lifecycle;
+the 8f4e editor keeps its background, line, and RGBA texture plugins in web-ui.
 
 ## Optional drawing utilities
 
