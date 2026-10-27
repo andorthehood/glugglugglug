@@ -43,7 +43,7 @@
   },
   "scripts": {
     "benchmark:submission": "node benchmarks/sprite-submission.mjs",
-    "build": "tsc",
+    "build": "rm -rf dist && tsc",
     "check": "biome check --vcs-enabled=false .",
     "dev": "tsc --watch",
     "dev:test": "vite --config screenshot-tests/vite.config.ts",
