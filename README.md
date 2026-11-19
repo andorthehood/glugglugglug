@@ -111,33 +111,6 @@ resource they create.
 The engine does not bundle concrete rendering plugins. Consumers own their hook implementations and lifecycle;
 the 8f4e editor keeps its background, line, and RGBA texture plugins in web-ui.
 
-## Optional drawing utilities
-
-`glugglugglug/utils` provides a CPU-only `DrawContext` for nested coordinate offsets. It wraps the structural
-`SpriteTarget` interface, so an `Engine`, a test recorder, or another numeric destination can receive the final sprite
-submissions without importing utility code into the core renderer.
-
-```ts
-import { Engine } from 'glugglugglug';
-import { DrawContext } from 'glugglugglug/utils';
-
-const engine = new Engine(canvas);
-const draw = new DrawContext(engine);
-engine.setPalette(new Uint8Array([255,255,255,255]));
-engine.setSpriteAtlas(mask, grid);
-const panelSpriteId = 0; // Application-selected grid cell.
-
-engine.renderFrame(() => {
-	draw.startGroup(panel.x, panel.y);
-	draw.drawSprite(0, 0, panelSpriteId, 0, panel.width, panel.height);
-	draw.endGroup();
-});
-```
-
-One context can be reused across frames. Every `startGroup()` call must have a matching `endGroup()` call. Text, fonts,
-fallback glyphs, and space handling belong to higher-level application utilities. The context owns neither its target nor
-the atlas, render loop, or caches.
-
 ## Development
 
 The package owns its TypeScript, Vitest, Playwright, and Biome configuration and can be developed without the 8f4e
